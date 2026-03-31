@@ -58,6 +58,8 @@ func Setup(
 	{
 		writeGroup.POST("/assets", assetH.Create)
 		writeGroup.POST("/assets/:id/reviews", reviewH.Create)
+		writeGroup.POST("/assets/:id/versions", assetH.UploadVersion)
+		writeGroup.PATCH("/assets/:id/versions/current", assetH.SetCurrentVersion)
 	}
 
 	// Admin endpoints

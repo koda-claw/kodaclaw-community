@@ -511,6 +511,86 @@ func newProfileCmd() *cobra.Command {
 	return cmd
 }
 
+func newUploadVersionCmd() *cobra.Command {
+	var filePath, changelog, version string
+
+	cmd := &cobra.Command{
+		Use:   "upload-version <asset_id>",
+		Short: "Upload a new version for an existing asset",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			creds := mustLoadCreds()
+			assetID := args[0]
+
+			f, err := os.Open(filePath)
+			if err != nil {
+				exitErr(fmt.Sprintf("failed to open file: %v", err))
+			}
+			defer f.Close()
+
+			var buf bytes.Buffer
+			w := multipart.NewWriter(&buf)
+
+			_ = w.WriteField("version", version)
+			if changelog != "" {
+				_ = w.WriteField("changelog", changelog)
+			}
+
+			fw, err := w.CreateFormFile("file", filepath.Base(filePath))
+			if err != nil {
+				exitErr(fmt.Sprintf("failed to create form file: %v", err))
+			}
+			if _, err := io.Copy(fw, f); err != nil {
+				exitErr(fmt.Sprintf("failed to write file content: %v", err))
+			}
+			w.Close()
+
+			req, err := http.NewRequest("POST", creds.BaseURL+"/api/v1/assets/"+assetID+"/versions", &buf)
+			if err != nil {
+				exitErr(err.Error())
+			}
+			req.Header.Set("Content-Type", w.FormDataContentType())
+			req.Header.Set("Authorization", "Bearer "+creds.APIKey)
+
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				exitErr(err.Error())
+			}
+			handleResp(resp)
+		},
+	}
+	cmd.Flags().StringVar(&filePath, "file", "", "Path to .zip file (required)")
+	cmd.Flags().StringVar(&version, "version", "", "Version e.g. 1.2.0 (required)")
+	cmd.Flags().StringVar(&changelog, "changelog", "", "Changelog for this version")
+	_ = cmd.MarkFlagRequired("file")
+	_ = cmd.MarkFlagRequired("version")
+	return cmd
+}
+
+func newSetVersionCmd() *cobra.Command {
+	var version string
+
+	cmd := &cobra.Command{
+		Use:   "set-version <asset_id>",
+		Short: "Set the current version of an asset",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			creds := mustLoadCreds()
+			assetID := args[0]
+
+			body := map[string]string{"version": version}
+			resp, err := doJSON("PATCH", creds.BaseURL+"/api/v1/assets/"+assetID+"/versions/current", creds.APIKey, body)
+			if err != nil {
+				exitErr(err.Error())
+			}
+			handleResp(resp)
+		},
+	}
+	cmd.Flags().StringVar(&version, "version", "", "Version to set as current (required)")
+	_ = cmd.MarkFlagRequired("version")
+	return cmd
+}
+
 func newAdminCmd() *cobra.Command {
 	adminCmd := &cobra.Command{
 		Use:   "admin",
@@ -566,6 +646,8 @@ func main() {
 		newSearchCmd(),
 		newDownloadCmd(),
 		newUploadCmd(),
+		newUploadVersionCmd(),
+		newSetVersionCmd(),
 		newReviewCmd(),
 		newRateCmd(),
 		newProfileCmd(),
