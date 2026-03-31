@@ -129,8 +129,10 @@ func Setup(
 	publicGroup.Use(middleware.RateLimitMiddleware(readLimiter, 100))
 	{
 		publicGroup.GET("/skills", publicH.ListSkills)
+		publicGroup.GET("/skills/download/:id", publicH.DownloadSkillByID)
 		publicGroup.GET("/skills/:name", publicH.GetSkill)
 		publicGroup.GET("/skills/:name/SKILL.md", publicH.GetSkillContent)
 		publicGroup.GET("/skills/:name/download", publicH.DownloadSkill)
+		publicGroup.GET("/reviews/:id", publicH.ListReviews)
 	}
 }

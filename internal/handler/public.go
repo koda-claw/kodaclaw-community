@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/vanzheng/kodaclaw-community/internal/middleware"
 	"github.com/vanzheng/kodaclaw-community/internal/model"
 	"github.com/vanzheng/kodaclaw-community/internal/repository"
@@ -21,11 +22,12 @@ var bootstrapSkillContent string
 type PublicHandler struct {
 	assetRepo   repository.AssetRepository
 	versionRepo repository.AssetVersionRepository
+	reviewRepo  repository.ReviewRepository
 	storagePath string
 }
 
-func NewPublicHandler(assetRepo repository.AssetRepository, versionRepo repository.AssetVersionRepository, storagePath string) *PublicHandler {
-	return &PublicHandler{assetRepo: assetRepo, versionRepo: versionRepo, storagePath: storagePath}
+func NewPublicHandler(assetRepo repository.AssetRepository, versionRepo repository.AssetVersionRepository, reviewRepo repository.ReviewRepository, storagePath string) *PublicHandler {
+	return &PublicHandler{assetRepo: assetRepo, versionRepo: versionRepo, reviewRepo: reviewRepo, storagePath: storagePath}
 }
 
 // ListSkills godoc
@@ -147,4 +149,67 @@ func (h *PublicHandler) DownloadSkill(c *gin.Context) {
 // GET /skill.md
 func (h *PublicHandler) BootstrapSkill(c *gin.Context) {
 	c.Data(http.StatusOK, "text/plain; charset=utf-8", []byte(bootstrapSkillContent))
+}
+
+// ListReviews godoc
+// GET /api/v1/public/reviews/:id
+func (h *PublicHandler) ListReviews(c *gin.Context) {
+	assetID, err := parseUUID(c, "id")
+	if err != nil {
+		return
+	}
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	reviews, total, err := h.reviewRepo.ListByAssetID(c.Request.Context(), assetID, page, pageSize)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list reviews")
+		return
+	}
+	if reviews == nil {
+		reviews = []model.Review{}
+	}
+	middleware.RespondOK(c, gin.H{"reviews": reviews, "total": total})
+}
+
+// DownloadSkillByID godoc
+// GET /api/v1/public/skills/download/:id
+func (h *PublicHandler) DownloadSkillByID(c *gin.Context) {
+	assetID, err := parseUUID(c, "id")
+	if err != nil {
+		return
+	}
+
+	asset, err := h.assetRepo.GetByID(c.Request.Context(), assetID)
+	if err != nil {
+		if errors.Is(err, repository.ErrAssetNotFound) {
+			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Skill not found")
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get skill")
+		return
+	}
+
+	av, err := h.versionRepo.GetCurrent(c.Request.Context(), asset.ID)
+	if err != nil {
+		if errors.Is(err, repository.ErrAssetNotFound) {
+			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Asset version not found")
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get version")
+		return
+	}
+
+	filePath := filepath.Join(h.storagePath, av.FileKey)
+	c.FileAttachment(filePath, fmt.Sprintf("%s-%s.zip", asset.Name, av.Version))
+}
+
+func parseUUID(c *gin.Context, param string) (uuid.UUID, error) {
+	raw := c.Param(param)
+	id, err := uuid.Parse(raw)
+	if err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid UUID")
+		return uuid.Nil, err
+	}
+	return id, nil
 }

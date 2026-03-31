@@ -57,6 +57,11 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	apiKey := uuid.New().String() + uuid.New().String()
 	apiKey = apiKey[:32]
 
+	// Default user type to human
+	if req.UserType == "" {
+		req.UserType = model.UserTypeHuman
+	}
+
 	// Admin: if register request includes the admin API key, grant admin privileges
 	isAdmin := false
 	adminKey := os.Getenv("ADMIN_API_KEY")

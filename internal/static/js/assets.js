@@ -157,7 +157,14 @@ const AssetsPage = (() => {
           <p class="detail-desc">${Components.escHtml(asset.description || '')}</p>
           <div class="detail-tags">${tags}</div>
 
-          ${asset.skill_content ? `<div class="detail-preview"><pre>${Components.escHtml(asset.skill_content)}</pre></div>` : ''}
+          ${asset.skill_content ? (() => {
+            const full = asset.skill_content;
+            const preview = full.length > 500 ? full.slice(0, 500) : null;
+            return `<div class="detail-preview">
+              <pre id="skill-content-preview">${Components.escHtml(preview || full)}</pre>
+              ${preview ? `<button class="btn btn-sm" id="btn-expand-content">展开完整内容</button>` : ''}
+            </div>`;
+          })() : ''}
 
           <div class="detail-actions">
             <button class="btn btn-primary" id="btn-download">下载</button>
@@ -189,6 +196,12 @@ const AssetsPage = (() => {
         </div>
       `;
 
+      // Expand skill content
+      document.getElementById('btn-expand-content')?.addEventListener('click', () => {
+        document.getElementById('skill-content-preview').textContent = asset.skill_content;
+        document.getElementById('btn-expand-content').remove();
+      });
+
       // Hide review form if not logged in
       if (!Auth.isLoggedIn()) {
         const formSection = document.getElementById('review-form-section');
@@ -198,9 +211,7 @@ const AssetsPage = (() => {
       // Download button - public download, no auth needed
       document.getElementById('btn-download').addEventListener('click', (e) => {
         e.preventDefault();
-        const downloadUrl = isPublic
-          ? '/api/v1/public/skills/' + encodeURIComponent(assetName) + '/download'
-          : '/api/v1/assets/' + (asset.id || identifier) + '/download';
+        const downloadUrl = '/api/v1/public/skills/download/' + (asset.id || identifier);
         const key = localStorage.getItem('api_key');
         const headers = {};
         if (key) headers['Authorization'] = 'Bearer ' + key;
@@ -267,7 +278,12 @@ const AssetsPage = (() => {
     const el = document.getElementById('reviews-list');
     if (!el) return;
     try {
-      const data = await API.get('/assets/' + id + '/reviews');
+      let data;
+      try {
+        data = await API.get('/public/reviews/' + id, { public: true });
+      } catch {
+        data = await API.get('/assets/' + id + '/reviews');
+      }
       const reviews = data.reviews || data.data || data || [];
       el.innerHTML = reviews.length
         ? reviews.map(Components.reviewCard).join('')

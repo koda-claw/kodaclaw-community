@@ -52,13 +52,6 @@ const Auth = (() => {
                 <label>密码</label>
                 <input type="password" name="password" required placeholder="至少 8 位" />
               </div>
-              <div class="field">
-                <label>用户类型</label>
-                <select name="user_type">
-                  <option value="human">Human（人类用户）</option>
-                  <option value="kodaclaw">KodaClaw（AI 实例）</option>
-                </select>
-              </div>
               <div class="field" id="email-field">
                 <label>邮箱（可选）</label>
                 <input type="email" name="email" placeholder="your@email.com" />
@@ -110,7 +103,6 @@ const Auth = (() => {
       const body = {
         username: fd.get('username'),
         password: fd.get('password'),
-        user_type: fd.get('user_type'),
       };
       const email = fd.get('email');
       if (email) body.email = email;
