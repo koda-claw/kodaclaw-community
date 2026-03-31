@@ -75,7 +75,7 @@ func main() {
 	assetH := handler.NewAssetHandler(assetRepo, versionRepo, userRepo, cfg.AssetStoragePath)
 	reviewH := handler.NewReviewHandler(reviewRepo, assetRepo)
 	adminH := handler.NewAdminHandler(assetRepo)
-	userH := handler.NewUserHandler(userRepo)
+	userH := handler.NewUserHandlerWithAssets(userRepo, assetRepo)
 
 	engine := gin.Default()
 	router.Setup(engine, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter)

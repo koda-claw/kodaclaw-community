@@ -116,7 +116,7 @@ func setupTestRouter(pool *pgxpool.Pool, storagePath string) *gin.Engine {
 	assetH := handler.NewAssetHandler(assetRepo, versionRepo, userRepo, storagePath)
 	reviewH := handler.NewReviewHandler(reviewRepo, assetRepo)
 	adminH := handler.NewAdminHandler(assetRepo)
-	userH := handler.NewUserHandler(userRepo)
+	userH := handler.NewUserHandlerWithAssets(userRepo, assetRepo)
 
 	readLimiter := middleware.NewMemoryRateLimiter(1000, 60)
 	writeLimiter := middleware.NewMemoryRateLimiter(1000, 60)

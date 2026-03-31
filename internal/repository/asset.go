@@ -28,6 +28,7 @@ type AssetFilter struct {
 	Tag      string
 	Query    string
 	Status   string // empty = public (approved only), set value = admin filter by specific status
+	AuthorID string // filter by author
 	Page     int
 	PageSize int
 }
@@ -117,6 +118,14 @@ func (r *assetRepo) List(ctx context.Context, filter AssetFilter) ([]model.Asset
 		where = append(where, fmt.Sprintf("(a.name ILIKE $%d OR a.description ILIKE $%d)", argIdx, argIdx))
 		args = append(args, "%"+filter.Query+"%")
 		argIdx++
+	}
+	if filter.AuthorID != "" {
+		uid, err := uuid.Parse(filter.AuthorID)
+		if err == nil {
+			where = append(where, fmt.Sprintf("a.author_id = $%d", argIdx))
+			args = append(args, uid)
+			argIdx++
+		}
 	}
 
 	whereClause := strings.Join(where, " AND ")
