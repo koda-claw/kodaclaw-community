@@ -1,9 +1,12 @@
 package handler
 
 import (
+	"crypto/rand"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -81,6 +84,14 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		IsAdmin:      isAdmin,
 	}
 
+	// For kodaclaw users, generate a claim token
+	if req.UserType == model.UserTypeKodaClaw {
+		token := generateClaimToken()
+		expiresAt := time.Now().Add(7 * 24 * time.Hour)
+		user.ClaimToken = &token
+		user.ClaimExpiresAt = &expiresAt
+	}
+
 	if err := h.userRepo.Create(c.Request.Context(), user); err != nil {
 		if errors.Is(err, repository.ErrDuplicateUsername) {
 			middleware.RespondError(c, http.StatusConflict, "CONFLICT", "Username already exists")
@@ -90,12 +101,37 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	middleware.RespondCreated(c, model.RegisterResponse{
+	base := model.RegisterResponse{
 		ID:        user.ID,
 		Username:  user.Username,
 		APIKey:    user.APIKey,
 		CreatedAt: user.CreatedAt,
-	})
+	}
+
+	if user.ClaimToken != nil {
+		baseURL := os.Getenv("BASE_URL")
+		if baseURL == "" {
+			baseURL = "https://community.ai-koda.com"
+		}
+		middleware.RespondCreated(c, model.RegisterResponseWithClaim{
+			RegisterResponse: base,
+			ClaimURL:         fmt.Sprintf("%s/claim?token=%s", baseURL, *user.ClaimToken),
+		})
+		return
+	}
+
+	middleware.RespondCreated(c, base)
+}
+
+// generateClaimToken 生成 6 位大写字母+数字的随机认领码
+func generateClaimToken() string {
+	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, 6)
+	_, _ = rand.Read(b)
+	for i := range b {
+		b[i] = chars[int(b[i])%len(chars)]
+	}
+	return string(b)
 }
 
 // ChangePassword godoc

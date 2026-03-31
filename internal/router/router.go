@@ -20,6 +20,7 @@ func Setup(
 	readLimiter, writeLimiter, uploadLimiter middleware.RateLimiter,
 	publicH *handler.PublicHandler,
 	githubH *handler.GitHubHandler,
+	claimH *handler.ClaimHandler,
 ) {
 	engine.Use(gin.Recovery())
 	engine.Use(middleware.ErrorHandler())
@@ -29,6 +30,9 @@ func Setup(
 	engine.Static("/css", "./internal/static/css")
 	engine.Static("/js", "./internal/static/js")
 	engine.StaticFile("/openapi.yaml", "./docs/openapi.yaml")
+
+	// 认领页面（无需认证，直接返回 HTML）
+	engine.GET("/claim", claimH.GetClaimPage)
 
 	engine.GET("/api/v1/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok", "version": "0.1.0"})
@@ -77,6 +81,7 @@ func Setup(
 		readGroup.GET("/users/me", userH.GetMe)
 		readGroup.GET("/users/me/favorites", userH.ListFavorites)
 		readGroup.GET("/users/me/notifications", userH.ListNotifications)
+		readGroup.GET("/users/me/instances", claimH.GetClaimedInstances)
 		readGroup.GET("/users/:id", userH.GetByID)
 		readGroup.GET("/users/:id/assets", userH.ListAssets)
 	}
@@ -125,6 +130,7 @@ func Setup(
 		adminGroup.GET("/assets", adminH.ListAssets)
 		adminGroup.POST("/assets/:id/approve", adminH.Approve)
 		adminGroup.POST("/assets/:id/reject", adminH.Reject)
+		adminGroup.POST("/cleanup-orphans", adminH.CleanupOrphans)
 	}
 
 	// Public endpoints (no auth required, rate limited)
@@ -135,5 +141,8 @@ func Setup(
 		publicGroup.GET("/skills/:name", publicH.GetSkill)
 		publicGroup.GET("/skills/:name/SKILL.md", publicH.GetSkillContent)
 		publicGroup.GET("/skills/:name/download", publicH.DownloadSkill)
+		publicGroup.GET("skills/download/:id", publicH.DownloadSkillByID)
+		publicGroup.GET("reviews/:id", publicH.ListReviews)
+		publicGroup.POST("/claim", claimH.Claim)
 	}
 }

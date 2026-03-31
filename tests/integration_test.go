@@ -134,6 +134,14 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 			CHECK (asset_id != depends_on_asset_id)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_asset_dependencies_asset ON asset_dependencies(asset_id)`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS github_id BIGINT`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS github_username VARCHAR(100)`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_github_id ON users(github_id) WHERE github_id IS NOT NULL`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS claim_token VARCHAR(36)`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS claim_expires_at TIMESTAMP`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS claimed_by UUID REFERENCES users(id)`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMP`,
 	}
 	for _, sql := range migrations {
 		if _, err := pool.Exec(ctx, sql); err != nil {
@@ -170,17 +178,18 @@ func setupTestRouter(pool *pgxpool.Pool, storagePath string) *gin.Engine {
 	authH := handler.NewAuthHandler(userRepo)
 	assetH := handler.NewAssetHandlerFull(assetRepo, versionRepo, userRepo, favoriteRepo, depRepo, installRepo, storagePath)
 	reviewH := handler.NewReviewHandler(reviewRepo, assetRepo)
-	adminH := handler.NewAdminHandler(assetRepo, notificationRepo)
+	adminH := handler.NewAdminHandler(assetRepo, notificationRepo, versionRepo, storagePath)
 	userH := handler.NewUserHandlerWithNotifications(userRepo, assetRepo, favoriteRepo, notificationRepo)
 	publicH := handler.NewPublicHandler(assetRepo, versionRepo, reviewRepo, storagePath)
 	githubH := handler.NewGitHubHandler(userRepo)
+	claimH := handler.NewClaimHandler(userRepo)
 
 	readLimiter := middleware.NewMemoryRateLimiter(1000, 60)
 	uploadLimiter := middleware.NewMemoryRateLimiter(1000, 60)
 	writeLimiter := middleware.NewMemoryRateLimiter(1000, 60)
 
 	engine := gin.New()
-	router.Setup(engine, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, uploadLimiter, publicH, githubH)
+	router.Setup(engine, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, uploadLimiter, publicH, githubH, claimH)
 	return engine
 }
 

@@ -3,7 +3,10 @@ package handler
 import (
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -15,10 +18,17 @@ import (
 type AdminHandler struct {
 	assetRepo        repository.AssetRepository
 	notificationRepo repository.NotificationRepository
+	versionRepo      repository.AssetVersionRepository
+	storagePath      string
 }
 
-func NewAdminHandler(assetRepo repository.AssetRepository, notificationRepo repository.NotificationRepository) *AdminHandler {
-	return &AdminHandler{assetRepo: assetRepo, notificationRepo: notificationRepo}
+func NewAdminHandler(assetRepo repository.AssetRepository, notificationRepo repository.NotificationRepository, versionRepo repository.AssetVersionRepository, storagePath string) *AdminHandler {
+	return &AdminHandler{
+		assetRepo:        assetRepo,
+		notificationRepo: notificationRepo,
+		versionRepo:      versionRepo,
+		storagePath:      storagePath,
+	}
 }
 
 // ListAssets godoc
@@ -188,4 +198,97 @@ func (h *AdminHandler) Reject(c *gin.Context) {
 	_ = h.notificationRepo.Create(c.Request.Context(), n)
 
 	middleware.RespondOK(c, gin.H{"message": "Asset rejected", "id": id, "reason": reason})
+}
+
+// CleanupOrphans 清理磁盘上孤立的资产目录（无对应 asset_versions 记录）
+func (h *AdminHandler) CleanupOrphans(c *gin.Context) {
+	isAdmin, ok := c.Get(middleware.ContextIsAdmin)
+	if !ok || !isAdmin.(bool) {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Admin access required")
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	// 获取所有有效的 file_key（来自数据库）
+	fileKeys, err := h.versionRepo.ListAllFileKeys(ctx)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list file keys")
+		return
+	}
+
+	// 构建有效版本目录集合：{assetID}/{version}
+	validDirs := make(map[string]struct{}, len(fileKeys))
+	for _, key := range fileKeys {
+		// file_key 格式：{assetID}/{version}/{filename}
+		parts := strings.SplitN(key, string(filepath.Separator), 3)
+		if len(parts) < 2 {
+			// 兼容斜杠分隔
+			parts = strings.SplitN(key, "/", 3)
+		}
+		if len(parts) >= 2 {
+			validDirs[parts[0]+"/"+parts[1]] = struct{}{}
+		}
+	}
+
+	// 扫描存储目录
+	assetEntries, err := os.ReadDir(h.storagePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			middleware.RespondOK(c, gin.H{"deleted": 0, "message": "Storage directory does not exist"})
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to read storage directory")
+		return
+	}
+
+	var deleted []string
+	var deleteErrors []string
+
+	for _, assetEntry := range assetEntries {
+		if !assetEntry.IsDir() {
+			continue
+		}
+		assetDir := filepath.Join(h.storagePath, assetEntry.Name())
+		versionEntries, err := os.ReadDir(assetDir)
+		if err != nil {
+			continue
+		}
+
+		assetHasValid := false
+		for _, versionEntry := range versionEntries {
+			if !versionEntry.IsDir() {
+				continue
+			}
+			key := assetEntry.Name() + "/" + versionEntry.Name()
+			if _, ok := validDirs[key]; ok {
+				assetHasValid = true
+				continue
+			}
+			// 孤立版本目录
+			orphanPath := filepath.Join(assetDir, versionEntry.Name())
+			if err := os.RemoveAll(orphanPath); err != nil {
+				deleteErrors = append(deleteErrors, fmt.Sprintf("failed to remove %s: %v", orphanPath, err))
+			} else {
+				deleted = append(deleted, key)
+			}
+		}
+
+		// 如果资产目录下已无有效版本，删除整个资产目录
+		if !assetHasValid {
+			// 重新检查是否还有内容
+			remaining, _ := os.ReadDir(assetDir)
+			if len(remaining) == 0 {
+				if err := os.RemoveAll(assetDir); err != nil {
+					deleteErrors = append(deleteErrors, fmt.Sprintf("failed to remove asset dir %s: %v", assetDir, err))
+				}
+			}
+		}
+	}
+
+	middleware.RespondOK(c, gin.H{
+		"deleted":       len(deleted),
+		"deleted_paths": deleted,
+		"errors":        deleteErrors,
+	})
 }

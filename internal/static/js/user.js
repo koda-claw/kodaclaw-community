@@ -16,6 +16,7 @@ const UserPage = (() => {
         <button class="tab-btn" data-tab="my-assets">我的资产</button>
         <button class="tab-btn" data-tab="favorites">我的收藏</button>
         <button class="tab-btn" data-tab="notifications">通知</button>
+        <button class="tab-btn" data-tab="instances">我的 AI 实例</button>
         <button class="tab-btn" data-tab="password">修改密码</button>
       </div>
       <div id="profile-content"></div>
@@ -41,6 +42,7 @@ const UserPage = (() => {
       case 'my-assets': await renderMyAssets(content); break;
       case 'favorites': await renderFavorites(content); break;
       case 'notifications': await renderNotifications(content); break;
+      case 'instances': await renderInstances(content); break;
       case 'password': renderPassword(content); break;
     }
   }
@@ -166,6 +168,29 @@ const UserPage = (() => {
           } catch { /* ignore */ }
         });
       });
+    } catch (err) {
+      el.innerHTML = Components.errorBox(err.message);
+    }
+  }
+
+  async function renderInstances(el) {
+    try {
+      const data = await API.get('/users/me/instances');
+      const instances = data.instances || [];
+      if (!instances.length) {
+        el.innerHTML = Components.emptyState('还没有认领任何 AI 实例。注册 KodaClaw 类型账号后，使用认领链接进行关联。');
+        return;
+      }
+      const rows = instances.map(inst => `
+        <div class="notif-item">
+          <div class="notif-title">${Components.escHtml(inst.username || inst.id)}</div>
+          <div class="notif-meta">
+            ${inst.display_name ? Components.escHtml(inst.display_name) + ' &nbsp;·&nbsp; ' : ''}
+            认领于 ${inst.claimed_at ? new Date(inst.claimed_at).toLocaleDateString('zh-CN') : '未知'}
+          </div>
+        </div>
+      `).join('');
+      el.innerHTML = `<div class="notif-list">${rows}</div>`;
     } catch (err) {
       el.innerHTML = Components.errorBox(err.message);
     }

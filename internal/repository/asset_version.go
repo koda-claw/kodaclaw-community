@@ -18,6 +18,7 @@ type AssetVersionRepository interface {
 	GetByVersion(ctx context.Context, assetID uuid.UUID, version string) (*model.AssetVersion, error)
 	GetCurrent(ctx context.Context, assetID uuid.UUID) (*model.AssetVersion, error)
 	ListByAssetID(ctx context.Context, assetID uuid.UUID) ([]model.AssetVersion, error)
+	ListAllFileKeys(ctx context.Context) ([]string, error)
 }
 
 type assetVersionRepo struct {
@@ -89,4 +90,22 @@ func (r *assetVersionRepo) ListByAssetID(ctx context.Context, assetID uuid.UUID)
 		return nil, err
 	}
 	return versions, nil
+}
+
+func (r *assetVersionRepo) ListAllFileKeys(ctx context.Context) ([]string, error) {
+	rows, err := r.pool.Query(ctx, `SELECT file_key FROM asset_versions`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var keys []string
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			return nil, err
+		}
+		keys = append(keys, key)
+	}
+	return keys, rows.Err()
 }

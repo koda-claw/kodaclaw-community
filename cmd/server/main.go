@@ -60,6 +60,9 @@ func main() {
 	if err := repository.RunGitHubMigrations(ctx, pool); err != nil {
 		log.Fatalf("Failed to run GitHub migrations: %v", err)
 	}
+	if err := repository.RunClaimMigrations(ctx, pool); err != nil {
+		log.Fatalf("Failed to run claim migrations: %v", err)
+	}
 	log.Println("Database migrations complete")
 
 	rdb := redis.NewClient(&redis.Options{
@@ -91,13 +94,14 @@ func main() {
 	authH := handler.NewAuthHandler(userRepo)
 	assetH := handler.NewAssetHandlerFull(assetRepo, versionRepo, userRepo, favoriteRepo, depRepo, installRepo, cfg.AssetStoragePath)
 	reviewH := handler.NewReviewHandler(reviewRepo, assetRepo)
-	adminH := handler.NewAdminHandler(assetRepo, notificationRepo)
+	adminH := handler.NewAdminHandler(assetRepo, notificationRepo, versionRepo, cfg.AssetStoragePath)
 	userH := handler.NewUserHandlerWithNotifications(userRepo, assetRepo, favoriteRepo, notificationRepo)
 	publicH := handler.NewPublicHandler(assetRepo, versionRepo, reviewRepo, cfg.AssetStoragePath)
 	githubH := handler.NewGitHubHandler(userRepo)
+	claimH := handler.NewClaimHandler(userRepo)
 
 	engine := gin.Default()
-	router.Setup(engine, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, uploadLimiter, publicH, githubH)
+	router.Setup(engine, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, uploadLimiter, publicH, githubH, claimH)
 
 	srv := &http.Server{
 		Addr:    cfg.Port,

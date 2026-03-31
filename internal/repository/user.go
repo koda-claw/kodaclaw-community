@@ -28,6 +28,10 @@ type UserRepository interface {
 	UpdateProfile(ctx context.Context, id uuid.UUID, displayName, description *string) error
 	UpdatePassword(ctx context.Context, id uuid.UUID, passwordHash string) error
 	UpdateAvatarURL(ctx context.Context, id uuid.UUID, avatarURL string) error
+	GetByClaimToken(ctx context.Context, token string) (*model.User, error)
+	ClaimKodaClawUser(ctx context.Context, kodaclawUserID, humanUserID uuid.UUID) error
+	GetClaimedInstances(ctx context.Context, humanUserID uuid.UUID) ([]model.User, error)
+	CleanExpiredClaimTokens(ctx context.Context) (int64, error)
 }
 
 type userRepo struct {
@@ -55,10 +59,11 @@ func RunGitHubMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 
 func (r *userRepo) Create(ctx context.Context, user *model.User) error {
 	_, err := r.pool.Exec(ctx,
-		`INSERT INTO users (id, username, password_hash, api_key, user_type, instance_id, display_name, description, is_admin)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		`INSERT INTO users (id, username, password_hash, api_key, user_type, instance_id, display_name, description, is_admin, claim_token, claim_expires_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
 		user.ID, user.Username, user.PasswordHash, user.APIKey, user.UserType,
-		user.InstanceID, user.DisplayName, user.Description, user.IsAdmin)
+		user.InstanceID, user.DisplayName, user.Description, user.IsAdmin,
+		user.ClaimToken, user.ClaimExpiresAt)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -142,6 +147,83 @@ func (r *userRepo) UpdateAvatarURL(ctx context.Context, id uuid.UUID, avatarURL 
 		`UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2`,
 		avatarURL, id)
 	return err
+}
+
+func (r *userRepo) GetByClaimToken(ctx context.Context, token string) (*model.User, error) {
+	var u model.User
+	err := r.pool.QueryRow(ctx,
+		`SELECT id, username, password_hash, api_key, user_type, instance_id, display_name, description, is_admin,
+		        claim_token, claim_expires_at, claimed_by, claimed_at, created_at, updated_at
+		 FROM users WHERE claim_token = $1`, token).
+		Scan(&u.ID, &u.Username, &u.PasswordHash, &u.APIKey, &u.UserType,
+			&u.InstanceID, &u.DisplayName, &u.Description, &u.IsAdmin,
+			&u.ClaimToken, &u.ClaimExpiresAt, &u.ClaimedBy, &u.ClaimedAt,
+			&u.CreatedAt, &u.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrUserNotFound
+	}
+	return &u, err
+}
+
+func (r *userRepo) ClaimKodaClawUser(ctx context.Context, kodaclawUserID, humanUserID uuid.UUID) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE users SET claimed_by = $1, claimed_at = NOW(), claim_token = NULL, claim_expires_at = NULL, updated_at = NOW()
+		 WHERE id = $2 AND user_type = 'kodaclaw'`,
+		humanUserID, kodaclawUserID)
+	return err
+}
+
+func (r *userRepo) GetClaimedInstances(ctx context.Context, humanUserID uuid.UUID) ([]model.User, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT id, username, user_type, instance_id, display_name, description, claimed_by, claimed_at, created_at, updated_at
+		 FROM users WHERE claimed_by = $1 AND user_type = 'kodaclaw' ORDER BY claimed_at DESC`, humanUserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []model.User
+	for rows.Next() {
+		var u model.User
+		if err := rows.Scan(&u.ID, &u.Username, &u.UserType, &u.InstanceID, &u.DisplayName,
+			&u.Description, &u.ClaimedBy, &u.ClaimedAt, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if users == nil {
+		users = []model.User{}
+	}
+	return users, nil
+}
+
+func (r *userRepo) CleanExpiredClaimTokens(ctx context.Context) (int64, error) {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE users SET claim_token = NULL, claim_expires_at = NULL, updated_at = NOW()
+		 WHERE claim_token IS NOT NULL AND claim_expires_at < NOW()`)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
+func RunClaimMigrations(ctx context.Context, pool *pgxpool.Pool) error {
+	migrations := []string{
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS claim_token VARCHAR(36)`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS claim_expires_at TIMESTAMP`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS claimed_by UUID REFERENCES users(id)`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMP`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_claim_token ON users(claim_token) WHERE claim_token IS NOT NULL`,
+	}
+	for _, sql := range migrations {
+		if _, err := pool.Exec(ctx, sql); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *userRepo) CreateWithGitHub(ctx context.Context, user *model.User) error {
