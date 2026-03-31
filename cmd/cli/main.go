@@ -83,6 +83,30 @@ func doJSON(method, endpoint, apiKey string, body interface{}) (*http.Response, 
 	return http.DefaultClient.Do(req)
 }
 
+func doJSONWithHeader(method, endpoint, apiKey string, body interface{}, headerKey, headerVal string) (*http.Response, error) {
+	var r io.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil {
+			return nil, err
+		}
+		r = bytes.NewReader(b)
+	}
+	req, err := http.NewRequest(method, endpoint, r)
+	if err != nil {
+		return nil, err
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+	req.Header.Set(headerKey, headerVal)
+	return http.DefaultClient.Do(req)
+}
+
+
 // printOut writes indented JSON to stdout.
 func printOut(v interface{}) {
 	enc := json.NewEncoder(os.Stdout)
@@ -173,11 +197,15 @@ func newRegisterCmd() *cobra.Command {
 				"password":  args[1],
 				"user_type": args[2],
 			}
-			// admin_key is not part of the register API currently; pass as extra field if provided.
+			// Admin registration: pass admin_key as X-Admin-Key header
+			var resp *http.Response
+			var err error
 			if len(args) == 4 {
-				body["admin_key"] = args[3]
+				resp, err = doJSONWithHeader(
+					"POST", base+"/api/v1/auth/register", "", body, "X-Admin-Key", args[3])
+			} else {
+				resp, err = doJSON("POST", base+"/api/v1/auth/register", "", body)
 			}
-			resp, err := doJSON("POST", base+"/api/v1/auth/register", "", body)
 			if err != nil {
 				exitErr(err.Error())
 			}
