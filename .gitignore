@@ -30,3 +30,6 @@ data/assets/*
 
 # Docker
 docker-data/
+
+kc-server
+kc-community
