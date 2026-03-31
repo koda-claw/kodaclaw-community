@@ -6,9 +6,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/vanzheng/kodaclaw-community/internal/model"
 )
+
+var ErrDuplicateVersion = errors.New("version already exists for this asset")
 
 type AssetVersionRepository interface {
 	Create(ctx context.Context, av *model.AssetVersion) error
@@ -30,6 +33,12 @@ func (r *assetVersionRepo) Create(ctx context.Context, av *model.AssetVersion) e
 		`INSERT INTO asset_versions (id, asset_id, version, file_key, file_size, changelog)
 		 VALUES ($1, $2, $3, $4, $5, $6)`,
 		av.ID, av.AssetID, av.Version, av.FileKey, av.FileSize, av.Changelog)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return ErrDuplicateVersion
+		}
+	}
 	return err
 }
 

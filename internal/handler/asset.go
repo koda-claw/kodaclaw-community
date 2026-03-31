@@ -315,3 +315,170 @@ func (h *AssetHandler) ListVersions(c *gin.Context) {
 	}
 	middleware.RespondOK(c, versions)
 }
+
+func (h *AssetHandler) UploadVersion(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid asset ID")
+		return
+	}
+
+	asset, err := h.assetRepo.GetByID(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, repository.ErrAssetNotFound) {
+			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Asset not found")
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get asset")
+		return
+	}
+
+	userID := c.GetString(middleware.ContextUserID)
+	if asset.AuthorID.String() != userID {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Only the author can upload new versions")
+		return
+	}
+
+	version := c.PostForm("version")
+	if version == "" {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Version is required")
+		return
+	}
+	if !versionRegex.MatchString(version) {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Version must be in format x.y.z (e.g. 1.0.0)")
+		return
+	}
+
+	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "File is required")
+		return
+	}
+	defer file.Close()
+
+	if header.Size > maxFileSize {
+		middleware.RespondError(c, http.StatusRequestEntityTooLarge, "FILE_TOO_LARGE", "File size exceeds 50MB limit")
+		return
+	}
+
+	if !strings.HasSuffix(strings.ToLower(header.Filename), ".zip") {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Only .zip files are allowed")
+		return
+	}
+
+	buf := make([]byte, 2)
+	n, _ := file.Read(buf)
+	if n < 2 || buf[0] != 0x50 || buf[1] != 0x4B {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_FILE", "File is not a valid ZIP archive")
+		return
+	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to process file")
+		return
+	}
+
+	safeFilename := filepath.Base(header.Filename)
+
+	dir := filepath.Join(h.storagePath, id.String(), version)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create storage directory")
+		return
+	}
+
+	filePath := filepath.Join(dir, safeFilename)
+	dst, err := os.Create(filePath)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to save file")
+		return
+	}
+	defer dst.Close()
+
+	written, err := io.Copy(dst, file)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to save file")
+		return
+	}
+
+	changelog := c.PostForm("changelog")
+	var changelogPtr *string
+	if changelog != "" {
+		changelogPtr = &changelog
+	}
+
+	fileKey := filepath.Join(id.String(), version, safeFilename)
+	av := &model.AssetVersion{
+		ID:        uuid.New(),
+		AssetID:   id,
+		Version:   version,
+		FileKey:   fileKey,
+		FileSize:  written,
+		Changelog: changelogPtr,
+	}
+
+	if err := h.versionRepo.Create(c.Request.Context(), av); err != nil {
+		os.RemoveAll(dir)
+		if errors.Is(err, repository.ErrDuplicateVersion) {
+			middleware.RespondError(c, http.StatusConflict, "CONFLICT", "Version already exists for this asset")
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create version")
+		return
+	}
+
+	middleware.RespondCreated(c, av)
+}
+
+func (h *AssetHandler) SetCurrentVersion(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid asset ID")
+		return
+	}
+
+	asset, err := h.assetRepo.GetByID(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, repository.ErrAssetNotFound) {
+			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Asset not found")
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get asset")
+		return
+	}
+
+	userID := c.GetString(middleware.ContextUserID)
+	if asset.AuthorID.String() != userID {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Only the author can change the current version")
+		return
+	}
+
+	var req struct {
+		Version string `json:"version" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		return
+	}
+
+	_, err = h.versionRepo.GetByVersion(c.Request.Context(), id, req.Version)
+	if err != nil {
+		if errors.Is(err, repository.ErrAssetNotFound) {
+			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Version not found for this asset")
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get version")
+		return
+	}
+
+	if err := h.assetRepo.UpdateCurrentVersion(c.Request.Context(), id, req.Version); err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update current version")
+		return
+	}
+
+	updated, err := h.assetRepo.GetByID(c.Request.Context(), id)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to fetch updated asset")
+		return
+	}
+
+	middleware.RespondOK(c, updated)
+}
