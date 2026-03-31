@@ -21,6 +21,7 @@ type AssetRepository interface {
 	List(ctx context.Context, filter AssetFilter) ([]model.Asset, int, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status model.AssetStatus, reason *string) error
 	UpdateCurrentVersion(ctx context.Context, id uuid.UUID, version string) error
+	IncrementDownloadCount(ctx context.Context, assetID, userID uuid.UUID) error
 }
 
 type AssetFilter struct {
@@ -29,6 +30,7 @@ type AssetFilter struct {
 	Query    string
 	Status   string // empty = public (approved only), set value = admin filter by specific status
 	AuthorID string // filter by author
+	Sort     string // "downloads", "created_at" (default: "created_at")
 	Page     int
 	PageSize int
 }
@@ -80,10 +82,10 @@ func (r *assetRepo) CreateWithVersion(ctx context.Context, asset *model.Asset, v
 func (r *assetRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.Asset, error) {
 	var a model.Asset
 	err := r.pool.QueryRow(ctx,
-		`SELECT a.id, a.name, a.type, a.description, a.author_id, u.username, a.status, a.tags, a.current_version, a.rejection_reason, a.created_at, a.updated_at
+		`SELECT a.id, a.name, a.type, a.description, a.author_id, u.username, a.status, a.tags, a.current_version, a.rejection_reason, a.download_count, a.created_at, a.updated_at
 		 FROM assets a JOIN users u ON a.author_id = u.id WHERE a.id = $1`, id).
 		Scan(&a.ID, &a.Name, &a.Type, &a.Description, &a.AuthorID, &a.AuthorName,
-			&a.Status, &a.Tags, &a.CurrentVersion, &a.RejectionReason, &a.CreatedAt, &a.UpdatedAt)
+			&a.Status, &a.Tags, &a.CurrentVersion, &a.RejectionReason, &a.DownloadCount, &a.CreatedAt, &a.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrAssetNotFound
 	}
@@ -144,10 +146,15 @@ func (r *assetRepo) List(ctx context.Context, filter AssetFilter) ([]model.Asset
 	}
 	offset := (filter.Page - 1) * filter.PageSize
 
+	orderBy := "a.created_at DESC"
+	if filter.Sort == "downloads" {
+		orderBy = "a.download_count DESC, a.created_at DESC"
+	}
+
 	querySQL := fmt.Sprintf(
-		`SELECT a.id, a.name, a.type, a.description, a.author_id, u.username, a.status, a.tags, a.current_version, a.rejection_reason, a.created_at, a.updated_at
-		 FROM assets a JOIN users u ON a.author_id = u.id WHERE %s ORDER BY a.created_at DESC LIMIT $%d OFFSET $%d`,
-		whereClause, argIdx, argIdx+1)
+		`SELECT a.id, a.name, a.type, a.description, a.author_id, u.username, a.status, a.tags, a.current_version, a.rejection_reason, a.download_count, a.created_at, a.updated_at
+		 FROM assets a JOIN users u ON a.author_id = u.id WHERE %s ORDER BY %s LIMIT $%d OFFSET $%d`,
+		whereClause, orderBy, argIdx, argIdx+1)
 	args = append(args, filter.PageSize, offset)
 
 	rows, err := r.pool.Query(ctx, querySQL, args...)
@@ -160,7 +167,7 @@ func (r *assetRepo) List(ctx context.Context, filter AssetFilter) ([]model.Asset
 	for rows.Next() {
 		var a model.Asset
 		if err := rows.Scan(&a.ID, &a.Name, &a.Type, &a.Description, &a.AuthorID, &a.AuthorName,
-			&a.Status, &a.Tags, &a.CurrentVersion, &a.RejectionReason, &a.CreatedAt, &a.UpdatedAt); err != nil {
+			&a.Status, &a.Tags, &a.CurrentVersion, &a.RejectionReason, &a.DownloadCount, &a.CreatedAt, &a.UpdatedAt); err != nil {
 			return nil, 0, err
 		}
 		assets = append(assets, a)
@@ -184,4 +191,30 @@ func (r *assetRepo) UpdateCurrentVersion(ctx context.Context, id uuid.UUID, vers
 		`UPDATE assets SET current_version = $1, updated_at = NOW() WHERE id = $2`,
 		version, id)
 	return err
+}
+
+func (r *assetRepo) IncrementDownloadCount(ctx context.Context, assetID, userID uuid.UUID) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	tag, err := tx.Exec(ctx,
+		`INSERT INTO asset_downloads (asset_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+		assetID, userID)
+	if err != nil {
+		return err
+	}
+
+	if tag.RowsAffected() == 1 {
+		_, err = tx.Exec(ctx,
+			`UPDATE assets SET download_count = download_count + 1 WHERE id = $1`,
+			assetID)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit(ctx)
 }

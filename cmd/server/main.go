@@ -175,6 +175,16 @@ func runMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 		`CREATE INDEX IF NOT EXISTS idx_assets_status ON assets(status)`,
 		`CREATE INDEX IF NOT EXISTS idx_assets_type ON assets(type)`,
 		`CREATE INDEX IF NOT EXISTS idx_asset_versions_asset_created ON asset_versions(asset_id, created_at DESC)`,
+		`ALTER TABLE assets ADD COLUMN IF NOT EXISTS download_count INTEGER NOT NULL DEFAULT 0`,
+		`CREATE TABLE IF NOT EXISTS asset_downloads (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			asset_id UUID NOT NULL REFERENCES assets(id),
+			user_id UUID NOT NULL REFERENCES users(id),
+			downloaded_at TIMESTAMP NOT NULL DEFAULT NOW(),
+			UNIQUE(asset_id, user_id)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_asset_downloads_asset ON asset_downloads(asset_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_assets_download_count ON assets(download_count DESC)`,
 	}
 
 	for _, sql := range migrations {

@@ -216,7 +216,7 @@ func newRegisterCmd() *cobra.Command {
 }
 
 func newSearchCmd() *cobra.Command {
-	var assetType, tag, query, author string
+	var assetType, tag, query, author, sort string
 	var page, pageSize int
 
 	cmd := &cobra.Command{
@@ -238,6 +238,9 @@ func newSearchCmd() *cobra.Command {
 			if author != "" {
 				params.Set("author", author)
 			}
+			if sort != "" {
+				params.Set("sort", sort)
+			}
 			params.Set("page", strconv.Itoa(page))
 			params.Set("page_size", strconv.Itoa(pageSize))
 
@@ -253,6 +256,7 @@ func newSearchCmd() *cobra.Command {
 	cmd.Flags().StringVar(&tag, "tag", "", "Filter by tag")
 	cmd.Flags().StringVar(&query, "q", "", "Search query")
 	cmd.Flags().StringVar(&author, "author", "", "Filter by author UUID")
+	cmd.Flags().StringVar(&sort, "sort", "", "Sort by: downloads (most downloaded), created_at (newest, default)")
 	cmd.Flags().IntVar(&page, "page", 1, "Page number")
 	cmd.Flags().IntVar(&pageSize, "page-size", 20, "Page size")
 	return cmd
