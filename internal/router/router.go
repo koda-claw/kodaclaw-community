@@ -23,6 +23,7 @@ func Setup(
 	engine.Use(middleware.ErrorHandler())
 
 	engine.GET("/api/v1/health", func(c *gin.Context) {
+	engine.StaticFile("/openapi.yaml", "./docs/openapi.yaml")
 		c.JSON(200, gin.H{"status": "ok", "version": "0.1.0"})
 	})
 
