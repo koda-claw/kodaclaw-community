@@ -12,9 +12,11 @@ import (
 	"github.com/vanzheng/kodaclaw-community/internal/repository"
 )
 
+
 type UserHandler struct {
-	userRepo  repository.UserRepository
-	assetRepo repository.AssetRepository
+	userRepo     repository.UserRepository
+	assetRepo    repository.AssetRepository
+	favoriteRepo repository.FavoriteRepository
 }
 
 func NewUserHandler(userRepo repository.UserRepository) *UserHandler {
@@ -23,6 +25,10 @@ func NewUserHandler(userRepo repository.UserRepository) *UserHandler {
 
 func NewUserHandlerWithAssets(userRepo repository.UserRepository, assetRepo repository.AssetRepository) *UserHandler {
 	return &UserHandler{userRepo: userRepo, assetRepo: assetRepo}
+}
+
+func NewUserHandlerWithFavorites(userRepo repository.UserRepository, assetRepo repository.AssetRepository, favoriteRepo repository.FavoriteRepository) *UserHandler {
+	return &UserHandler{userRepo: userRepo, assetRepo: assetRepo, favoriteRepo: favoriteRepo}
 }
 
 func (h *UserHandler) GetMe(c *gin.Context) {
@@ -114,6 +120,41 @@ func (h *UserHandler) ListAssets(c *gin.Context) {
 
 	middleware.RespondOK(c, model.AssetListResponse{
 		Items:    assets,
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+	})
+}
+
+func (h *UserHandler) ListFavorites(c *gin.Context) {
+	userID := c.GetString(middleware.ContextUserID)
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Invalid user ID in context")
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	favorites, total, err := h.favoriteRepo.ListByUserID(c.Request.Context(), uid, page, pageSize)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list favorites")
+		return
+	}
+
+	if favorites == nil {
+		favorites = []model.Favorite{}
+	}
+
+	middleware.RespondOK(c, model.FavoriteListResponse{
+		Items:    favorites,
 		Total:    total,
 		Page:     page,
 		PageSize: pageSize,

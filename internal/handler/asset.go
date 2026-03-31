@@ -25,10 +25,11 @@ const maxFileSize = 50 * 1024 * 1024 // 50MB
 var versionRegex = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 
 type AssetHandler struct {
-	assetRepo   repository.AssetRepository
-	versionRepo repository.AssetVersionRepository
-	userRepo    repository.UserRepository
-	storagePath string
+	assetRepo    repository.AssetRepository
+	versionRepo  repository.AssetVersionRepository
+	userRepo     repository.UserRepository
+	favoriteRepo repository.FavoriteRepository
+	storagePath  string
 }
 
 func NewAssetHandler(assetRepo repository.AssetRepository, versionRepo repository.AssetVersionRepository, userRepo repository.UserRepository, storagePath string) *AssetHandler {
@@ -37,6 +38,16 @@ func NewAssetHandler(assetRepo repository.AssetRepository, versionRepo repositor
 		versionRepo: versionRepo,
 		userRepo:    userRepo,
 		storagePath: storagePath,
+	}
+}
+
+func NewAssetHandlerWithFavorites(assetRepo repository.AssetRepository, versionRepo repository.AssetVersionRepository, userRepo repository.UserRepository, favoriteRepo repository.FavoriteRepository, storagePath string) *AssetHandler {
+	return &AssetHandler{
+		assetRepo:    assetRepo,
+		versionRepo:  versionRepo,
+		userRepo:     userRepo,
+		favoriteRepo: favoriteRepo,
+		storagePath:  storagePath,
 	}
 }
 
@@ -230,6 +241,25 @@ func (h *AssetHandler) List(c *gin.Context) {
 		assets = []model.Asset{}
 	}
 
+	if h.favoriteRepo != nil {
+		if userIDStr := c.GetString(middleware.ContextUserID); userIDStr != "" {
+			if uid, err := uuid.Parse(userIDStr); err == nil {
+				favIDs, err := h.favoriteRepo.ListAssetIDs(c.Request.Context(), uid)
+				if err == nil {
+					favSet := make(map[uuid.UUID]struct{}, len(favIDs))
+					for _, id := range favIDs {
+						favSet[id] = struct{}{}
+					}
+					for i := range assets {
+						if _, ok := favSet[assets[i].ID]; ok {
+							assets[i].IsFavorited = true
+						}
+					}
+				}
+			}
+		}
+	}
+
 	middleware.RespondOK(c, model.AssetListResponse{
 		Items:    assets,
 		Total:    total,
@@ -260,6 +290,14 @@ func (h *AssetHandler) GetByID(c *gin.Context) {
 	if asset.Status != model.AssetStatusApproved && asset.AuthorID.String() != userID {
 		middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Asset not found")
 		return
+	}
+
+	if h.favoriteRepo != nil && userID != "" {
+		if uid, err := uuid.Parse(userID); err == nil {
+			if exists, err := h.favoriteRepo.Exists(c.Request.Context(), uid, id); err == nil {
+				asset.IsFavorited = exists
+			}
+		}
 	}
 
 	middleware.RespondOK(c, asset)
@@ -498,4 +536,42 @@ func (h *AssetHandler) SetCurrentVersion(c *gin.Context) {
 	}
 
 	middleware.RespondOK(c, updated)
+}
+
+func (h *AssetHandler) ToggleFavorite(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid asset ID")
+		return
+	}
+
+	asset, err := h.assetRepo.GetByID(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, repository.ErrAssetNotFound) {
+			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Asset not found")
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get asset")
+		return
+	}
+
+	if asset.Status != model.AssetStatusApproved {
+		middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Asset not found")
+		return
+	}
+
+	userID := c.GetString(middleware.ContextUserID)
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Invalid user ID in context")
+		return
+	}
+
+	favorited, err := h.favoriteRepo.Toggle(c.Request.Context(), uid, id)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to toggle favorite")
+		return
+	}
+
+	middleware.RespondOK(c, gin.H{"favorited": favorited})
 }

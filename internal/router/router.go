@@ -48,6 +48,7 @@ func Setup(
 		readGroup.GET("/assets/:id/versions", assetH.ListVersions)
 		readGroup.GET("/assets/:id/reviews", reviewH.List)
 		readGroup.GET("/users/me", userH.GetMe)
+		readGroup.GET("/users/me/favorites", userH.ListFavorites)
 		readGroup.GET("/users/:id", userH.GetByID)
 		readGroup.GET("/users/:id/assets", userH.ListAssets)
 	}
@@ -58,6 +59,7 @@ func Setup(
 	writeGroup.Use(middleware.AuthMiddleware(checker))
 	{
 		writeGroup.POST("/assets", assetH.Create)
+		writeGroup.POST("/assets/:id/favorite", assetH.ToggleFavorite)
 		writeGroup.POST("/assets/:id/reviews", reviewH.Create)
 		writeGroup.POST("/assets/:id/versions", assetH.UploadVersion)
 		writeGroup.PATCH("/assets/:id/versions/current", assetH.SetCurrentVersion)
