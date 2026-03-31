@@ -26,6 +26,7 @@ type AssetRepository interface {
 	PopularTags(ctx context.Context, limit int) ([]TagCount, error)
 	Update(ctx context.Context, id uuid.UUID, name, description string, tags []string, status model.AssetStatus) error
 	Delete(ctx context.Context, id uuid.UUID) error
+	UpdateReadme(ctx context.Context, id uuid.UUID, readme, skillContent *string) error
 }
 
 type TagCount struct {
@@ -70,9 +71,9 @@ func (r *assetRepo) CreateWithVersion(ctx context.Context, asset *model.Asset, v
 	defer tx.Rollback(ctx)
 
 	_, err = tx.Exec(ctx,
-		`INSERT INTO assets (id, name, type, description, author_id, status, tags, current_version)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		asset.ID, asset.Name, asset.Type, asset.Description, asset.AuthorID, asset.Status, asset.Tags, asset.CurrentVersion)
+		`INSERT INTO assets (id, name, type, description, author_id, status, tags, current_version, asset_readme, asset_skill_content)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+		asset.ID, asset.Name, asset.Type, asset.Description, asset.AuthorID, asset.Status, asset.Tags, asset.CurrentVersion, asset.Readme, asset.SkillContent)
 	if err != nil {
 		return err
 	}
@@ -88,13 +89,20 @@ func (r *assetRepo) CreateWithVersion(ctx context.Context, asset *model.Asset, v
 	return tx.Commit(ctx)
 }
 
+func (r *assetRepo) UpdateReadme(ctx context.Context, id uuid.UUID, readme, skillContent *string) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE assets SET asset_readme = $1, asset_skill_content = $2, updated_at = NOW() WHERE id = $3`,
+		readme, skillContent, id)
+	return err
+}
+
 func (r *assetRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.Asset, error) {
 	var a model.Asset
 	err := r.pool.QueryRow(ctx,
-		`SELECT a.id, a.name, a.type, a.description, a.author_id, u.username, a.status, a.tags, a.current_version, a.rejection_reason, a.download_count, a.avg_rating, a.created_at, a.updated_at
+		`SELECT a.id, a.name, a.type, a.description, a.author_id, u.username, a.status, a.tags, a.current_version, a.rejection_reason, a.download_count, a.avg_rating, a.install_count, a.asset_readme, a.asset_skill_content, a.created_at, a.updated_at
 		 FROM assets a JOIN users u ON a.author_id = u.id WHERE a.id = $1`, id).
 		Scan(&a.ID, &a.Name, &a.Type, &a.Description, &a.AuthorID, &a.AuthorName,
-			&a.Status, &a.Tags, &a.CurrentVersion, &a.RejectionReason, &a.DownloadCount, &a.AvgRating, &a.CreatedAt, &a.UpdatedAt)
+			&a.Status, &a.Tags, &a.CurrentVersion, &a.RejectionReason, &a.DownloadCount, &a.AvgRating, &a.InstallCount, &a.Readme, &a.SkillContent, &a.CreatedAt, &a.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrAssetNotFound
 	}
@@ -163,7 +171,7 @@ func (r *assetRepo) List(ctx context.Context, filter AssetFilter) ([]model.Asset
 	}
 
 	querySQL := fmt.Sprintf(
-		`SELECT a.id, a.name, a.type, a.description, a.author_id, u.username, a.status, a.tags, a.current_version, a.rejection_reason, a.download_count, a.avg_rating, a.created_at, a.updated_at
+		`SELECT a.id, a.name, a.type, a.description, a.author_id, u.username, a.status, a.tags, a.current_version, a.rejection_reason, a.download_count, a.avg_rating, a.install_count, a.asset_readme, a.asset_skill_content, a.created_at, a.updated_at
 		 FROM assets a JOIN users u ON a.author_id = u.id WHERE %s ORDER BY %s LIMIT $%d OFFSET $%d`,
 		whereClause, orderBy, argIdx, argIdx+1)
 	args = append(args, filter.PageSize, offset)
@@ -178,7 +186,7 @@ func (r *assetRepo) List(ctx context.Context, filter AssetFilter) ([]model.Asset
 	for rows.Next() {
 		var a model.Asset
 		if err := rows.Scan(&a.ID, &a.Name, &a.Type, &a.Description, &a.AuthorID, &a.AuthorName,
-			&a.Status, &a.Tags, &a.CurrentVersion, &a.RejectionReason, &a.DownloadCount, &a.AvgRating, &a.CreatedAt, &a.UpdatedAt); err != nil {
+			&a.Status, &a.Tags, &a.CurrentVersion, &a.RejectionReason, &a.DownloadCount, &a.AvgRating, &a.InstallCount, &a.Readme, &a.SkillContent, &a.CreatedAt, &a.UpdatedAt); err != nil {
 			return nil, 0, err
 		}
 		assets = append(assets, a)

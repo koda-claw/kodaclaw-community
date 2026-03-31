@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"archive/zip"
 	"context"
 	"errors"
 	"fmt"
@@ -29,6 +30,8 @@ type AssetHandler struct {
 	versionRepo  repository.AssetVersionRepository
 	userRepo     repository.UserRepository
 	favoriteRepo repository.FavoriteRepository
+	depRepo      repository.AssetDependencyRepository
+	installRepo  repository.AssetInstallRepository
 	storagePath  string
 }
 
@@ -49,6 +52,52 @@ func NewAssetHandlerWithFavorites(assetRepo repository.AssetRepository, versionR
 		favoriteRepo: favoriteRepo,
 		storagePath:  storagePath,
 	}
+}
+
+func NewAssetHandlerFull(assetRepo repository.AssetRepository, versionRepo repository.AssetVersionRepository, userRepo repository.UserRepository, favoriteRepo repository.FavoriteRepository, depRepo repository.AssetDependencyRepository, installRepo repository.AssetInstallRepository, storagePath string) *AssetHandler {
+	return &AssetHandler{
+		assetRepo:    assetRepo,
+		versionRepo:  versionRepo,
+		userRepo:     userRepo,
+		favoriteRepo: favoriteRepo,
+		depRepo:      depRepo,
+		installRepo:  installRepo,
+		storagePath:  storagePath,
+	}
+}
+
+const maxReadmeSize = 100 * 1024 // 100KB
+
+// extractZipContent reads a saved zip file and returns content of README.md and SKILL.md if present.
+func extractZipContent(filePath string) (readme, skillContent *string) {
+	r, err := zip.OpenReader(filePath)
+	if err != nil {
+		return nil, nil
+	}
+	defer r.Close()
+
+	for _, f := range r.File {
+		name := filepath.Base(f.Name)
+		if name != "README.md" && name != "SKILL.md" {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			continue
+		}
+		data, err := io.ReadAll(io.LimitReader(rc, maxReadmeSize))
+		rc.Close()
+		if err != nil || len(data) == 0 {
+			continue
+		}
+		s := string(data)
+		if name == "README.md" {
+			readme = &s
+		} else {
+			skillContent = &s
+		}
+	}
+	return readme, skillContent
 }
 
 func (h *AssetHandler) Create(c *gin.Context) {
@@ -154,15 +203,20 @@ func (h *AssetHandler) Create(c *gin.Context) {
 		}
 	}
 
+	// Extract zip content (README.md and SKILL.md)
+	readme, skillContent := extractZipContent(filePath)
+
 	// Create asset record
 	asset := &model.Asset{
-		ID:          assetID,
-		Name:        req.Name,
-		Type:        req.Type,
-		Description: req.Description,
-		AuthorID:    uid,
-		Status:      model.AssetStatusPending,
-		Tags:        tags,
+		ID:           assetID,
+		Name:         req.Name,
+		Type:         req.Type,
+		Description:  req.Description,
+		AuthorID:     uid,
+		Status:       model.AssetStatusPending,
+		Tags:         tags,
+		Readme:       readme,
+		SkillContent: skillContent,
 	}
 
 	// Create version record
@@ -480,6 +534,14 @@ func (h *AssetHandler) UploadVersion(c *gin.Context) {
 		return
 	}
 
+	// Extract and update zip content for new version
+	readme, skillContent := extractZipContent(filePath)
+	if readme != nil || skillContent != nil {
+		if err := h.assetRepo.UpdateReadme(c.Request.Context(), id, readme, skillContent); err != nil {
+			log.Printf("warn: failed to update readme for asset %s: %v", id, err)
+		}
+	}
+
 	middleware.RespondCreated(c, av)
 }
 
@@ -685,4 +747,170 @@ func (h *AssetHandler) ToggleFavorite(c *gin.Context) {
 	}
 
 	middleware.RespondOK(c, gin.H{"favorited": favorited})
+}
+
+// ===== Dependencies =====
+
+func (h *AssetHandler) AddDependency(c *gin.Context) {
+	assetID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid asset ID")
+		return
+	}
+
+	asset, err := h.assetRepo.GetByID(c.Request.Context(), assetID)
+	if err != nil {
+		if errors.Is(err, repository.ErrAssetNotFound) {
+			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Asset not found")
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get asset")
+		return
+	}
+
+	userID := c.GetString(middleware.ContextUserID)
+	if asset.AuthorID.String() != userID {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Only the author can manage dependencies")
+		return
+	}
+
+	var req struct {
+		AssetID string `json:"asset_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		return
+	}
+
+	depID, err := uuid.Parse(req.AssetID)
+	if err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid dependency asset ID")
+		return
+	}
+
+	if depID == assetID {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Asset cannot depend on itself")
+		return
+	}
+
+	if err := h.depRepo.Add(c.Request.Context(), assetID, depID); err != nil {
+		if errors.Is(err, repository.ErrDependencyExists) {
+			middleware.RespondError(c, http.StatusConflict, "CONFLICT", "Dependency already exists")
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to add dependency")
+		return
+	}
+
+	middleware.RespondCreated(c, gin.H{"message": "Dependency added"})
+}
+
+func (h *AssetHandler) ListDependencies(c *gin.Context) {
+	assetID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid asset ID")
+		return
+	}
+
+	deps, err := h.depRepo.List(c.Request.Context(), assetID)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list dependencies")
+		return
+	}
+
+	if deps == nil {
+		deps = []model.AssetDependency{}
+	}
+	middleware.RespondOK(c, deps)
+}
+
+func (h *AssetHandler) DeleteDependency(c *gin.Context) {
+	assetID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid asset ID")
+		return
+	}
+
+	asset, err := h.assetRepo.GetByID(c.Request.Context(), assetID)
+	if err != nil {
+		if errors.Is(err, repository.ErrAssetNotFound) {
+			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Asset not found")
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get asset")
+		return
+	}
+
+	userID := c.GetString(middleware.ContextUserID)
+	if asset.AuthorID.String() != userID {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Only the author can manage dependencies")
+		return
+	}
+
+	depID, err := uuid.Parse(c.Param("dep_id"))
+	if err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid dependency ID")
+		return
+	}
+
+	if err := h.depRepo.Delete(c.Request.Context(), assetID, depID); err != nil {
+		if errors.Is(err, repository.ErrDependencyNotFound) {
+			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Dependency not found")
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to delete dependency")
+		return
+	}
+
+	middleware.RespondOK(c, gin.H{"message": "Dependency removed"})
+}
+
+// ===== Install =====
+
+func (h *AssetHandler) InstallAsset(c *gin.Context) {
+	assetID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid asset ID")
+		return
+	}
+
+	asset, err := h.assetRepo.GetByID(c.Request.Context(), assetID)
+	if err != nil {
+		if errors.Is(err, repository.ErrAssetNotFound) {
+			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Asset not found")
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get asset")
+		return
+	}
+
+	if asset.Status != model.AssetStatusApproved {
+		middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Asset not found")
+		return
+	}
+
+	userID := c.GetString(middleware.ContextUserID)
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Invalid user ID in context")
+		return
+	}
+
+	var req struct {
+		InstanceID string `json:"instance_id"`
+	}
+	c.ShouldBindJSON(&req)
+
+	var instanceID *string
+	if req.InstanceID != "" {
+		instanceID = &req.InstanceID
+	}
+
+	isNew, err := h.installRepo.Install(c.Request.Context(), assetID, uid, instanceID)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to record install")
+		return
+	}
+
+	middleware.RespondOK(c, gin.H{"installed": true, "new": isNew})
 }

@@ -31,9 +31,19 @@ type Asset struct {
 	RejectionReason  *string     `json:"rejection_reason,omitempty"`
 	DownloadCount    int         `json:"download_count"`
 	AvgRating        float64     `json:"avg_rating"`
+	InstallCount     int         `json:"install_count"`
+	Readme           *string     `json:"readme,omitempty"`
+	SkillContent     *string     `json:"skill_content,omitempty"`
 	IsFavorited      bool        `json:"is_favorited,omitempty"`
 	CreatedAt        time.Time   `json:"created_at"`
 	UpdatedAt        time.Time   `json:"updated_at"`
+}
+
+type AssetDependency struct {
+	AssetID          uuid.UUID `json:"asset_id"`
+	DependsOnAssetID uuid.UUID `json:"depends_on_asset_id"`
+	Name             string    `json:"name,omitempty"`
+	Type             AssetType `json:"type,omitempty"`
 }
 
 type AssetVersion struct {

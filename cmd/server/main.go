@@ -72,9 +72,11 @@ func main() {
 	reviewRepo := repository.NewReviewRepository(pool)
 	favoriteRepo := repository.NewFavoriteRepository(pool)
 	notificationRepo := repository.NewNotificationRepository(pool)
+	depRepo := repository.NewAssetDependencyRepository(pool)
+	installRepo := repository.NewAssetInstallRepository(pool)
 
 	authH := handler.NewAuthHandler(userRepo)
-	assetH := handler.NewAssetHandlerWithFavorites(assetRepo, versionRepo, userRepo, favoriteRepo, cfg.AssetStoragePath)
+	assetH := handler.NewAssetHandlerFull(assetRepo, versionRepo, userRepo, favoriteRepo, depRepo, installRepo, cfg.AssetStoragePath)
 	reviewH := handler.NewReviewHandler(reviewRepo, assetRepo)
 	adminH := handler.NewAdminHandler(assetRepo, notificationRepo)
 	userH := handler.NewUserHandlerWithNotifications(userRepo, assetRepo, favoriteRepo, notificationRepo)
@@ -208,6 +210,28 @@ func runMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id, is_read)`,
+		// Phase 5 batch 2: content preview columns
+		`ALTER TABLE assets ADD COLUMN IF NOT EXISTS asset_readme TEXT`,
+		`ALTER TABLE assets ADD COLUMN IF NOT EXISTS asset_skill_content TEXT`,
+		// Phase 5 batch 2: install count
+		`ALTER TABLE assets ADD COLUMN IF NOT EXISTS install_count INTEGER NOT NULL DEFAULT 0`,
+		`CREATE TABLE IF NOT EXISTS asset_installs (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			asset_id UUID NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+			user_id UUID NOT NULL REFERENCES users(id),
+			instance_id VARCHAR(255),
+			installed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_asset_installs_asset ON asset_installs(asset_id)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_asset_installs_unique ON asset_installs(asset_id, user_id, COALESCE(instance_id, ''))`,
+		// Phase 5 batch 2: asset dependencies
+		`CREATE TABLE IF NOT EXISTS asset_dependencies (
+			asset_id UUID NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+			depends_on_asset_id UUID NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+			PRIMARY KEY (asset_id, depends_on_asset_id),
+			CHECK (asset_id != depends_on_asset_id)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_asset_dependencies_asset ON asset_dependencies(asset_id)`,
 	}
 
 	for _, sql := range migrations {
