@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -12,11 +13,12 @@ import (
 )
 
 type AdminHandler struct {
-	assetRepo repository.AssetRepository
+	assetRepo        repository.AssetRepository
+	notificationRepo repository.NotificationRepository
 }
 
-func NewAdminHandler(assetRepo repository.AssetRepository) *AdminHandler {
-	return &AdminHandler{assetRepo: assetRepo}
+func NewAdminHandler(assetRepo repository.AssetRepository, notificationRepo repository.NotificationRepository) *AdminHandler {
+	return &AdminHandler{assetRepo: assetRepo, notificationRepo: notificationRepo}
 }
 
 func (h *AdminHandler) ListAssets(c *gin.Context) {
@@ -76,8 +78,8 @@ func (h *AdminHandler) Approve(c *gin.Context) {
 		return
 	}
 
-	// Check asset exists
-	if _, err := h.assetRepo.GetByID(c.Request.Context(), id); err != nil {
+	asset, err := h.assetRepo.GetByID(c.Request.Context(), id)
+	if err != nil {
 		if err == repository.ErrAssetNotFound {
 			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Asset not found")
 			return
@@ -90,6 +92,16 @@ func (h *AdminHandler) Approve(c *gin.Context) {
 		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to approve asset")
 		return
 	}
+
+	msg := fmt.Sprintf("您的资产 %s 已通过审核", asset.Name)
+	n := &model.Notification{
+		UserID:         asset.AuthorID,
+		Type:           "asset_approved",
+		Title:          "资产审核通过",
+		Message:        &msg,
+		RelatedAssetID: &asset.ID,
+	}
+	_ = h.notificationRepo.Create(c.Request.Context(), n)
 
 	middleware.RespondOK(c, gin.H{"message": "Asset approved", "id": id})
 }
@@ -114,8 +126,8 @@ func (h *AdminHandler) Reject(c *gin.Context) {
 		return
 	}
 
-	// Check asset exists
-	if _, err := h.assetRepo.GetByID(c.Request.Context(), id); err != nil {
+	asset, err := h.assetRepo.GetByID(c.Request.Context(), id)
+	if err != nil {
 		if err == repository.ErrAssetNotFound {
 			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Asset not found")
 			return
@@ -129,6 +141,16 @@ func (h *AdminHandler) Reject(c *gin.Context) {
 		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to reject asset")
 		return
 	}
+
+	msg := fmt.Sprintf("您的资产 %s 被拒绝: %s", asset.Name, reason)
+	n := &model.Notification{
+		UserID:         asset.AuthorID,
+		Type:           "asset_rejected",
+		Title:          "资产审核拒绝",
+		Message:        &msg,
+		RelatedAssetID: &asset.ID,
+	}
+	_ = h.notificationRepo.Create(c.Request.Context(), n)
 
 	middleware.RespondOK(c, gin.H{"message": "Asset rejected", "id": id, "reason": reason})
 }

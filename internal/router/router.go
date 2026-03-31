@@ -49,6 +49,7 @@ func Setup(
 		readGroup.GET("/assets/:id/reviews", reviewH.List)
 		readGroup.GET("/users/me", userH.GetMe)
 		readGroup.GET("/users/me/favorites", userH.ListFavorites)
+		readGroup.GET("/users/me/notifications", userH.ListNotifications)
 		readGroup.GET("/users/:id", userH.GetByID)
 		readGroup.GET("/users/:id/assets", userH.ListAssets)
 	}
@@ -63,6 +64,8 @@ func Setup(
 		writeGroup.POST("/assets/:id/reviews", reviewH.Create)
 		writeGroup.POST("/assets/:id/versions", assetH.UploadVersion)
 		writeGroup.PATCH("/assets/:id/versions/current", assetH.SetCurrentVersion)
+		writeGroup.PATCH("/users/me/notifications/read-all", userH.MarkAllNotificationsRead)
+		writeGroup.PATCH("/users/me/notifications/:id", userH.MarkNotificationRead)
 	}
 
 	// Admin endpoints
