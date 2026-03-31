@@ -10,6 +10,7 @@ import (
 
 type ReviewRepository interface {
 	Create(ctx context.Context, review *model.Review) error
+	ExistsByUserAndAsset(ctx context.Context, assetID, userID uuid.UUID) (bool, error)
 	ListByAssetID(ctx context.Context, assetID uuid.UUID, page, pageSize int) ([]model.Review, int, error)
 }
 
@@ -28,6 +29,17 @@ func (r *reviewRepo) Create(ctx context.Context, review *model.Review) error {
 		review.ID, review.AssetID, review.UserID, review.Content,
 		review.Compatibility, review.Usefulness, review.Security)
 	return err
+}
+
+func (r *reviewRepo) ExistsByUserAndAsset(ctx context.Context, assetID, userID uuid.UUID) (bool, error) {
+	var count int
+	err := r.pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM reviews WHERE asset_id = $1 AND user_id = $2`,
+		assetID, userID).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 func (r *reviewRepo) ListByAssetID(ctx context.Context, assetID uuid.UUID, page, pageSize int) ([]model.Review, int, error) {

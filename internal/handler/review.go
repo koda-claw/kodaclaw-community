@@ -41,7 +41,22 @@ func (h *ReviewHandler) Create(c *gin.Context) {
 	}
 
 	userID := c.GetString(middleware.ContextUserID)
-	uid, _ := uuid.Parse(userID)
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid user ID")
+		return
+	}
+
+	// Check for duplicate review
+	exists, err := h.reviewRepo.ExistsByUserAndAsset(c.Request.Context(), assetID, uid)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to check existing review")
+		return
+	}
+	if exists {
+		middleware.RespondError(c, http.StatusConflict, "CONFLICT", "You have already reviewed this asset")
+		return
+	}
 
 	review := &model.Review{
 		ID:            uuid.New(),
@@ -58,7 +73,6 @@ func (h *ReviewHandler) Create(c *gin.Context) {
 		return
 	}
 
-	// Fetch user name for response
 	middleware.RespondCreated(c, review)
 }
 
@@ -71,6 +85,13 @@ func (h *ReviewHandler) List(c *gin.Context) {
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
 
 	reviews, total, err := h.reviewRepo.ListByAssetID(c.Request.Context(), assetID, page, pageSize)
 	if err != nil {

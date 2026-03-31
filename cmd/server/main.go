@@ -163,6 +163,16 @@ func runMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_reviews_asset ON reviews(asset_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_reviews_user ON reviews(user_id)`,
+		// Unique indexes for auth hot path
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_api_key ON users(api_key)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)`,
+		// Prevent duplicate reviews
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_reviews_asset_user ON reviews(asset_id, user_id)`,
+		// Search performance indexes
+		`CREATE INDEX IF NOT EXISTS idx_assets_author_id ON assets(author_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_asset_versions_asset_version ON asset_versions(asset_id, version)`,
+		`CREATE INDEX IF NOT EXISTS idx_reviews_asset_created ON reviews(asset_id, created_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_asset_versions_asset_created ON asset_versions(asset_id, created_at DESC)`,
 	}
 
 	for _, sql := range migrations {

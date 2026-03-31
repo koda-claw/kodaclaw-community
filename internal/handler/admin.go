@@ -20,9 +20,23 @@ func NewAdminHandler(assetRepo repository.AssetRepository) *AdminHandler {
 }
 
 func (h *AdminHandler) ListAssets(c *gin.Context) {
+	// Defense in depth: verify admin role from context
+	isAdmin, ok := c.Get(middleware.ContextIsAdmin)
+	if !ok || !isAdmin.(bool) {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Admin access required")
+		return
+	}
+
 	status := c.DefaultQuery("status", "pending")
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
 
 	filter := repository.AssetFilter{
 		Status:   status,
@@ -49,9 +63,26 @@ func (h *AdminHandler) ListAssets(c *gin.Context) {
 }
 
 func (h *AdminHandler) Approve(c *gin.Context) {
+	// Defense in depth: verify admin role from context
+	isAdmin, ok := c.Get(middleware.ContextIsAdmin)
+	if !ok || !isAdmin.(bool) {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Admin access required")
+		return
+	}
+
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid asset ID")
+		return
+	}
+
+	// Check asset exists
+	if _, err := h.assetRepo.GetByID(c.Request.Context(), id); err != nil {
+		if err == repository.ErrAssetNotFound {
+			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Asset not found")
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get asset")
 		return
 	}
 
@@ -63,20 +94,33 @@ func (h *AdminHandler) Approve(c *gin.Context) {
 	middleware.RespondOK(c, gin.H{"message": "Asset approved", "id": id})
 }
 
-type RejectRequest struct {
-	Reason string `json:"reason" binding:"required"`
-}
-
 func (h *AdminHandler) Reject(c *gin.Context) {
+	// Defense in depth: verify admin role from context
+	isAdmin, ok := c.Get(middleware.ContextIsAdmin)
+	if !ok || !isAdmin.(bool) {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Admin access required")
+		return
+	}
+
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid asset ID")
 		return
 	}
 
-	var req RejectRequest
+	var req model.RejectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Reason is required")
+		return
+	}
+
+	// Check asset exists
+	if _, err := h.assetRepo.GetByID(c.Request.Context(), id); err != nil {
+		if err == repository.ErrAssetNotFound {
+			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Asset not found")
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get asset")
 		return
 	}
 

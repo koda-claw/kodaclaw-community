@@ -16,6 +16,7 @@ var ErrAssetNotFound = errors.New("asset not found")
 
 type AssetRepository interface {
 	Create(ctx context.Context, asset *model.Asset) error
+	CreateWithVersion(ctx context.Context, asset *model.Asset, version *model.AssetVersion) error
 	GetByID(ctx context.Context, id uuid.UUID) (*model.Asset, error)
 	List(ctx context.Context, filter AssetFilter) ([]model.Asset, int, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status model.AssetStatus, reason *string) error
@@ -45,6 +46,34 @@ func (r *assetRepo) Create(ctx context.Context, asset *model.Asset) error {
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 		asset.ID, asset.Name, asset.Type, asset.Description, asset.AuthorID, asset.Status, asset.Tags, asset.CurrentVersion)
 	return err
+}
+
+// CreateWithVersion creates an asset and its first version in a single transaction.
+// If version creation fails, the asset creation is rolled back.
+func (r *assetRepo) CreateWithVersion(ctx context.Context, asset *model.Asset, version *model.AssetVersion) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	_, err = tx.Exec(ctx,
+		`INSERT INTO assets (id, name, type, description, author_id, status, tags, current_version)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		asset.ID, asset.Name, asset.Type, asset.Description, asset.AuthorID, asset.Status, asset.Tags, asset.CurrentVersion)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(ctx,
+		`INSERT INTO asset_versions (id, asset_id, version, file_key, file_size, changelog)
+		 VALUES ($1, $2, $3, $4, $5, $6)`,
+		version.ID, version.AssetID, version.Version, version.FileKey, version.FileSize, version.Changelog)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
 }
 
 func (r *assetRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.Asset, error) {

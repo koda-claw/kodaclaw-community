@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -44,7 +45,7 @@ func (h *UserHandler) GetByID(c *gin.Context) {
 
 	user, err := h.userRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if err == repository.ErrUserNotFound {
+		if errors.Is(err, repository.ErrUserNotFound) {
 			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "User not found")
 			return
 		}
