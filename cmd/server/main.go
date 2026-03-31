@@ -70,12 +70,13 @@ func main() {
 	assetRepo := repository.NewAssetRepository(pool)
 	versionRepo := repository.NewAssetVersionRepository(pool)
 	reviewRepo := repository.NewReviewRepository(pool)
+	favoriteRepo := repository.NewFavoriteRepository(pool)
 
 	authH := handler.NewAuthHandler(userRepo)
-	assetH := handler.NewAssetHandler(assetRepo, versionRepo, userRepo, cfg.AssetStoragePath)
+	assetH := handler.NewAssetHandlerWithFavorites(assetRepo, versionRepo, userRepo, favoriteRepo, cfg.AssetStoragePath)
 	reviewH := handler.NewReviewHandler(reviewRepo, assetRepo)
 	adminH := handler.NewAdminHandler(assetRepo)
-	userH := handler.NewUserHandlerWithAssets(userRepo, assetRepo)
+	userH := handler.NewUserHandlerWithFavorites(userRepo, assetRepo, favoriteRepo)
 
 	engine := gin.Default()
 	router.Setup(engine, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter)
@@ -185,6 +186,14 @@ func runMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_asset_downloads_asset ON asset_downloads(asset_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_assets_download_count ON assets(download_count DESC)`,
+		`CREATE TABLE IF NOT EXISTS asset_favorites (
+			user_id UUID NOT NULL REFERENCES users(id),
+			asset_id UUID NOT NULL REFERENCES assets(id),
+			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+			PRIMARY KEY (user_id, asset_id)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_asset_favorites_user ON asset_favorites(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_asset_favorites_asset ON asset_favorites(asset_id)`,
 	}
 
 	for _, sql := range migrations {
