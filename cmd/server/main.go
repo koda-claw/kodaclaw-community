@@ -1,3 +1,12 @@
+// @title KodaClaw Community API
+// @version 0.2.0
+// @description 全球首个 Agent 资产共享平台
+// @host community.ai-koda.com
+// @BasePath /api/v1
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+
 package main
 
 import (
@@ -64,6 +73,7 @@ func main() {
 	}
 
 	readLimiter := middleware.NewMemoryRateLimiter(100, time.Minute)
+	uploadLimiter := middleware.NewMemoryRateLimiter(5, time.Minute)
 	writeLimiter := middleware.NewMemoryRateLimiter(20, time.Minute)
 
 	userRepo := repository.NewUserRepository(pool)
@@ -82,7 +92,7 @@ func main() {
 	userH := handler.NewUserHandlerWithNotifications(userRepo, assetRepo, favoriteRepo, notificationRepo)
 
 	engine := gin.Default()
-	router.Setup(engine, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter)
+	router.Setup(engine, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, uploadLimiter)
 
 	srv := &http.Server{
 		Addr:    cfg.Port,

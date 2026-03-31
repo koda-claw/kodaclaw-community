@@ -25,7 +25,7 @@ func uploadTestAssetWithTags(t *testing.T, r *gin.Engine, apiKey, name, assetTyp
 		_ = writer.WriteField("tags", tags)
 	}
 	part, _ := writer.CreateFormFile("file", "asset.zip")
-	part.Write(append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("zip content")...))
+	part.Write(makeMinimalZip())
 	writer.Close()
 
 	req := httptest.NewRequest("POST", "/api/v1/assets", body)

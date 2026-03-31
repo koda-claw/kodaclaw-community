@@ -25,7 +25,7 @@ func createAndApproveAsset(t *testing.T, r *gin.Engine, apiKey, adminKey, name s
 	_ = writer.WriteField("description", "Test asset: "+name)
 	_ = writer.WriteField("version", "1.0.0")
 	part, _ := writer.CreateFormFile("file", "asset.zip")
-	part.Write(append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("zip content")...))
+	part.Write(makeMinimalZip())
 	writer.Close()
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/assets", body)

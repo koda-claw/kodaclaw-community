@@ -35,6 +35,16 @@ func NewUserHandlerWithNotifications(userRepo repository.UserRepository, assetRe
 	return &UserHandler{userRepo: userRepo, assetRepo: assetRepo, favoriteRepo: favoriteRepo, notificationRepo: notificationRepo}
 }
 
+// UpdateProfile godoc
+// @Summary 更新当前用户资料
+// @Tags users
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body object true "资料信息 {display_name, description}"
+// @Success 200 {object} model.User
+// @Failure 400 {object} middleware.ErrorResponse
+// @Router /users/me [patch]
 func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	userID := c.GetString(middleware.ContextUserID)
 	uid, err := uuid.Parse(userID)
@@ -66,6 +76,14 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	middleware.RespondOK(c, user)
 }
 
+// GetMe godoc
+// @Summary 获取当前用户信息
+// @Tags users
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} model.User
+// @Failure 404 {object} middleware.ErrorResponse
+// @Router /users/me [get]
 func (h *UserHandler) GetMe(c *gin.Context) {
 	userID := c.GetString(middleware.ContextUserID)
 	uid, err := uuid.Parse(userID)
@@ -83,6 +101,16 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 	middleware.RespondOK(c, user)
 }
 
+// GetByID godoc
+// @Summary 获取用户公开资料
+// @Tags users
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "用户 UUID"
+// @Success 200 {object} model.UserProfile
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 404 {object} middleware.ErrorResponse
+// @Router /users/{id} [get]
 func (h *UserHandler) GetByID(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -113,6 +141,18 @@ func (h *UserHandler) GetByID(c *gin.Context) {
 	middleware.RespondOK(c, profile)
 }
 
+// ListAssets godoc
+// @Summary 获取用户发布的资产列表
+// @Tags users
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "用户 UUID"
+// @Param page query int false "页码" default(1)
+// @Param page_size query int false "每页数量" default(20)
+// @Success 200 {object} model.AssetListResponse
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 404 {object} middleware.ErrorResponse
+// @Router /users/{id}/assets [get]
 func (h *UserHandler) ListAssets(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -161,6 +201,15 @@ func (h *UserHandler) ListAssets(c *gin.Context) {
 	})
 }
 
+// ListFavorites godoc
+// @Summary 获取当前用户收藏列表
+// @Tags users
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "页码" default(1)
+// @Param page_size query int false "每页数量" default(20)
+// @Success 200 {object} model.FavoriteListResponse
+// @Router /users/me/favorites [get]
 func (h *UserHandler) ListFavorites(c *gin.Context) {
 	userID := c.GetString(middleware.ContextUserID)
 	uid, err := uuid.Parse(userID)
@@ -196,6 +245,16 @@ func (h *UserHandler) ListFavorites(c *gin.Context) {
 	})
 }
 
+// ListNotifications godoc
+// @Summary 获取当前用户通知列表
+// @Tags users
+// @Produce json
+// @Security BearerAuth
+// @Param unread query bool false "只显示未读"
+// @Param page query int false "页码" default(1)
+// @Param page_size query int false "每页数量" default(20)
+// @Success 200 {object} model.NotificationListResponse
+// @Router /users/me/notifications [get]
 func (h *UserHandler) ListNotifications(c *gin.Context) {
 	userID := c.GetString(middleware.ContextUserID)
 	uid, err := uuid.Parse(userID)

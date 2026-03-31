@@ -21,7 +21,7 @@ func uploadVersion(t *testing.T, r interface{ ServeHTTP(http.ResponseWriter, *ht
 		_ = writer.WriteField("changelog", changelog)
 	}
 	part, _ := writer.CreateFormFile("file", "update.zip")
-	part.Write(append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("updated zip content")...))
+	part.Write(makeMinimalZip())
 	writer.Close()
 
 	req := httptest.NewRequest("POST", "/api/v1/assets/"+assetID+"/versions", body)
@@ -60,7 +60,7 @@ func TestIntegration_UploadVersion_Success(t *testing.T) {
 	_ = writer.WriteField("description", "Testing version upload")
 	_ = writer.WriteField("version", "1.0.0")
 	part, _ := writer.CreateFormFile("file", "skill.zip")
-	part.Write(append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("zip content")...))
+	part.Write(makeMinimalZip())
 	writer.Close()
 
 	req := httptest.NewRequest("POST", "/api/v1/assets", body)
@@ -112,7 +112,7 @@ func TestIntegration_UploadVersion_DuplicateConflict(t *testing.T) {
 	_ = writer.WriteField("description", "Testing duplicate version")
 	_ = writer.WriteField("version", "1.0.0")
 	part, _ := writer.CreateFormFile("file", "skill.zip")
-	part.Write(append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("zip content")...))
+	part.Write(makeMinimalZip())
 	writer.Close()
 
 	req := httptest.NewRequest("POST", "/api/v1/assets", body)
@@ -155,7 +155,7 @@ func TestIntegration_UploadVersion_NonAuthorForbidden(t *testing.T) {
 	_ = writer.WriteField("description", "Testing non-author upload")
 	_ = writer.WriteField("version", "1.0.0")
 	part, _ := writer.CreateFormFile("file", "skill.zip")
-	part.Write(append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("zip content")...))
+	part.Write(makeMinimalZip())
 	writer.Close()
 
 	req := httptest.NewRequest("POST", "/api/v1/assets", body)
@@ -191,7 +191,7 @@ func TestIntegration_SetCurrentVersion_Success(t *testing.T) {
 	_ = writer.WriteField("description", "Testing set current version")
 	_ = writer.WriteField("version", "1.0.0")
 	part, _ := writer.CreateFormFile("file", "skill.zip")
-	part.Write(append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("zip content")...))
+	part.Write(makeMinimalZip())
 	writer.Close()
 
 	req := httptest.NewRequest("POST", "/api/v1/assets", body)
@@ -242,7 +242,7 @@ func TestIntegration_SetCurrentVersion_VersionNotFound(t *testing.T) {
 	_ = writer.WriteField("description", "Testing version not found")
 	_ = writer.WriteField("version", "1.0.0")
 	part, _ := writer.CreateFormFile("file", "skill.zip")
-	part.Write(append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("zip content")...))
+	part.Write(makeMinimalZip())
 	writer.Close()
 
 	req := httptest.NewRequest("POST", "/api/v1/assets", body)
@@ -279,7 +279,7 @@ func TestIntegration_SetCurrentVersion_NonAuthorForbidden(t *testing.T) {
 	_ = writer.WriteField("description", "Testing forbidden set version")
 	_ = writer.WriteField("version", "1.0.0")
 	part, _ := writer.CreateFormFile("file", "skill.zip")
-	part.Write(append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("zip content")...))
+	part.Write(makeMinimalZip())
 	writer.Close()
 
 	req := httptest.NewRequest("POST", "/api/v1/assets", body)

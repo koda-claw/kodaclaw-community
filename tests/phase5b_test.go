@@ -65,7 +65,7 @@ func TestPhase5b_AssetDependencies(t *testing.T) {
 	otherKey, _ := createTestUser(t, r, "dep_other", "password123", "human", false)
 	adminKey, _ := createTestUser(t, r, "dep_admin", "password123", "human", true)
 
-	minZip := append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("zip content")...)
+	minZip := makeMinimalZip()
 	assetID := uploadZipAssetFull(t, r, authorKey, "Main Asset", "skill", "1.0.0", "main asset", minZip)
 	depID := uploadZipAssetFull(t, r, authorKey, "Dep Asset", "skill", "1.0.0", "dependency", minZip)
 	approveAssetHelper(t, r, adminKey, assetID)
@@ -222,7 +222,7 @@ func TestPhase5b_ContentPreview(t *testing.T) {
 	})
 
 	t.Run("上传不含 README.md 的资产后字段不返回", func(t *testing.T) {
-		minZip := append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("zip content no docs")...)
+		minZip := makeMinimalZip()
 		assetID := uploadZipAssetFull(t, r, authorKey, "No Readme Asset", "skill", "1.0.0", "no readme", minZip)
 		approveAssetHelper(t, r, adminKey, assetID)
 
@@ -256,7 +256,7 @@ func TestPhase5b_InstallCount(t *testing.T) {
 	user2Key, _ := createTestUser(t, r, "install_user2", "password123", "human", false)
 	adminKey, _ := createTestUser(t, r, "install_admin", "password123", "human", true)
 
-	minZip := append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("zip install content")...)
+	minZip := makeMinimalZip()
 	assetID := uploadZipAssetFull(t, r, authorKey, "Install Asset", "skill", "1.0.0", "install test", minZip)
 	approveAssetHelper(t, r, adminKey, assetID)
 

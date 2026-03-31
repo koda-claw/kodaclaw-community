@@ -21,6 +21,17 @@ func NewAuthHandler(userRepo repository.UserRepository) *AuthHandler {
 	return &AuthHandler{userRepo: userRepo}
 }
 
+// Register godoc
+// @Summary 注册新用户
+// @Description 创建新用户账号并返回 API Key
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param body body model.RegisterRequest true "注册信息"
+// @Success 201 {object} model.RegisterResponse
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 409 {object} middleware.ErrorResponse
+// @Router /auth/register [post]
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req model.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -82,6 +93,18 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	})
 }
 
+// ChangePassword godoc
+// @Summary 修改密码
+// @Description 验证旧密码后更新为新密码
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body object true "密码信息 {old_password, new_password}"
+// @Success 200 {object} object
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 401 {object} middleware.ErrorResponse
+// @Router /auth/password [patch]
 func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	userID := c.GetString(middleware.ContextUserID)
 	uid, err := uuid.Parse(userID)
@@ -124,6 +147,17 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	middleware.RespondOK(c, gin.H{"message": "Password updated successfully"})
 }
 
+// Login godoc
+// @Summary 用户登录
+// @Description 验证用户名和密码，返回 API Key
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param body body model.LoginRequest true "登录信息"
+// @Success 200 {object} model.LoginResponse
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 401 {object} middleware.ErrorResponse
+// @Router /auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req model.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

@@ -174,10 +174,11 @@ func setupTestRouter(pool *pgxpool.Pool, storagePath string) *gin.Engine {
 	userH := handler.NewUserHandlerWithNotifications(userRepo, assetRepo, favoriteRepo, notificationRepo)
 
 	readLimiter := middleware.NewMemoryRateLimiter(1000, 60)
+	uploadLimiter := middleware.NewMemoryRateLimiter(1000, 60)
 	writeLimiter := middleware.NewMemoryRateLimiter(1000, 60)
 
 	engine := gin.New()
-	router.Setup(engine, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter)
+	router.Setup(engine, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, uploadLimiter)
 	return engine
 }
 
@@ -285,7 +286,7 @@ func TestIntegration_AssetCRUD(t *testing.T) {
 	_ = writer.WriteField("version", "1.0.0")
 	_ = writer.WriteField("changelog", "Initial release")
 	part, _ := writer.CreateFormFile("file", "skill.zip")
-	part.Write(append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("zip content")...))
+	part.Write(makeMinimalZip())
 	writer.Close()
 
 	req := httptest.NewRequest("POST", "/api/v1/assets", body)
@@ -458,7 +459,7 @@ func TestIntegration_Reviews(t *testing.T) {
 	_ = writer.WriteField("description", "For review testing")
 	_ = writer.WriteField("version", "1.0.0")
 	part, _ := writer.CreateFormFile("file", "skill.zip")
-	part.Write(append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("content")...))
+	part.Write(makeMinimalZip())
 	writer.Close()
 
 	req := httptest.NewRequest("POST", "/api/v1/assets", body)
@@ -537,7 +538,7 @@ func TestIntegration_AdminApproval(t *testing.T) {
 	_ = writer.WriteField("description", "For admin testing")
 	_ = writer.WriteField("version", "1.0.0")
 	part, _ := writer.CreateFormFile("file", "skill.zip")
-	part.Write(append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("content")...))
+	part.Write(makeMinimalZip())
 	writer.Close()
 
 	req := httptest.NewRequest("POST", "/api/v1/assets", body)
@@ -767,7 +768,7 @@ func TestIntegration_DownloadNonExistentVersion(t *testing.T) {
 	_ = writer.WriteField("description", "Download test")
 	_ = writer.WriteField("version", "1.0.0")
 	part, _ := writer.CreateFormFile("file", "skill.zip")
-	part.Write(append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("content")...))
+	part.Write(makeMinimalZip())
 	writer.Close()
 
 	req := httptest.NewRequest("POST", "/api/v1/assets", body)
@@ -809,7 +810,7 @@ func TestIntegration_Pagination(t *testing.T) {
 		_ = writer.WriteField("description", "Pagination test")
 		_ = writer.WriteField("version", "1.0.0")
 		part, _ := writer.CreateFormFile("file", "skill.zip")
-		part.Write(append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("content")...))
+		part.Write(makeMinimalZip())
 		writer.Close()
 
 		req := httptest.NewRequest("POST", "/api/v1/assets", body)
@@ -881,7 +882,7 @@ func TestIntegration_FileStorage(t *testing.T) {
 	_ = writer.WriteField("description", "File storage test")
 	_ = writer.WriteField("version", "1.0.0")
 	part, _ := writer.CreateFormFile("file", "myskill.zip")
-	part.Write(append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("test file content")...))
+	part.Write(makeMinimalZip())
 	writer.Close()
 
 	req := httptest.NewRequest("POST", "/api/v1/assets", body)
@@ -898,7 +899,7 @@ func TestIntegration_FileStorage(t *testing.T) {
 		t.Errorf("file not found at %s", expectedPath)
 	}
 	content, _ := os.ReadFile(expectedPath)
-	if string(content) != string(append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("test file content")...)) {
+	if string(content) != string(makeMinimalZip()) {
 		t.Errorf("content mismatch: %s", string(content))
 	}
 }
@@ -915,7 +916,7 @@ func uploadTestAsset(t *testing.T, r *gin.Engine, apiKey, name, version string) 
 	_ = writer.WriteField("description", "test asset")
 	_ = writer.WriteField("version", version)
 	part, _ := writer.CreateFormFile("file", "asset.zip")
-	part.Write(append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("zip content")...))
+	part.Write(makeMinimalZip())
 	writer.Close()
 
 	req := httptest.NewRequest("POST", "/api/v1/assets", body)
@@ -958,7 +959,7 @@ func TestSecurity_PathTraversal(t *testing.T) {
 	_ = writer.WriteField("description", "test")
 	_ = writer.WriteField("version", "1.0.0")
 	part, _ := writer.CreateFormFile("file", "../../etc/passwd.zip")
-	part.Write(append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("zip content")...))
+	part.Write(makeMinimalZip())
 	writer.Close()
 
 	req := httptest.NewRequest("POST", "/api/v1/assets", body)
@@ -1015,7 +1016,7 @@ func TestSecurity_VersionFormat(t *testing.T) {
 		_ = writer.WriteField("description", "test")
 		_ = writer.WriteField("version", tc.version)
 		part, _ := writer.CreateFormFile("file", "asset.zip")
-		part.Write(append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("zip content")...))
+		part.Write(makeMinimalZip())
 		writer.Close()
 
 		req := httptest.NewRequest("POST", "/api/v1/assets", body)
@@ -1057,7 +1058,7 @@ func TestSecurity_FileSizeLimit(t *testing.T) {
 	_ = writer.WriteField("description", "test")
 	_ = writer.WriteField("version", "1.0.0")
 	part, _ := writer.CreateFormFile("file", "small.zip")
-	part.Write(append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("small zip")...))
+	part.Write(makeMinimalZip())
 	writer.Close()
 
 	req := httptest.NewRequest("POST", "/api/v1/assets", body)

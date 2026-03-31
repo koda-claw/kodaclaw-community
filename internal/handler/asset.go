@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"log"
 	"net/http"
@@ -19,6 +20,7 @@ import (
 	"github.com/vanzheng/kodaclaw-community/internal/middleware"
 	"github.com/vanzheng/kodaclaw-community/internal/model"
 	"github.com/vanzheng/kodaclaw-community/internal/repository"
+	"github.com/vanzheng/kodaclaw-community/internal/security"
 )
 
 const maxFileSize = 50 * 1024 * 1024 // 50MB
@@ -100,6 +102,24 @@ func extractZipContent(filePath string) (readme, skillContent *string) {
 	return readme, skillContent
 }
 
+// Create godoc
+// @Summary 上传新资产
+// @Description 上传新的 soul/skill 资产（zip 文件）
+// @Tags assets
+// @Accept multipart/form-data
+// @Produce json
+// @Security BearerAuth
+// @Param name formData string true "资产名称"
+// @Param type formData string true "资产类型 (soul/skill)"
+// @Param description formData string true "资产描述"
+// @Param version formData string true "初始版本 (x.y.z)"
+// @Param tags formData string false "标签，逗号分隔"
+// @Param changelog formData string false "变更日志"
+// @Param file formData file true "zip 文件"
+// @Success 201 {object} model.Asset
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 413 {object} middleware.ErrorResponse
+// @Router /assets [post]
 func (h *AssetHandler) Create(c *gin.Context) {
 	var req model.UploadAssetRequest
 	if err := c.ShouldBind(&req); err != nil {
@@ -170,6 +190,13 @@ func (h *AssetHandler) Create(c *gin.Context) {
 		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to save file")
 		return
 	}
+	dst.Close()
+
+	if err := security.ScanZip(filePath); err != nil {
+		os.Remove(filePath)
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_FILE", err.Error())
+		return
+	}
 
 	userID := c.GetString(middleware.ContextUserID)
 	uid, err := uuid.Parse(userID)
@@ -209,9 +236,9 @@ func (h *AssetHandler) Create(c *gin.Context) {
 	// Create asset record
 	asset := &model.Asset{
 		ID:           assetID,
-		Name:         req.Name,
+		Name:         html.EscapeString(req.Name),
 		Type:         req.Type,
-		Description:  req.Description,
+		Description:  html.EscapeString(req.Description),
 		AuthorID:     uid,
 		Status:       model.AssetStatusPending,
 		Tags:         tags,
@@ -255,6 +282,22 @@ func (h *AssetHandler) Create(c *gin.Context) {
 	middleware.RespondCreated(c, created)
 }
 
+// List godoc
+// @Summary 获取资产列表
+// @Description 分页获取资产列表，支持过滤和排序
+// @Tags assets
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "页码" default(1)
+// @Param page_size query int false "每页数量" default(20)
+// @Param type query string false "资产类型 (soul/skill)"
+// @Param tag query string false "标签过滤"
+// @Param q query string false "搜索关键词"
+// @Param author query string false "作者 UUID"
+// @Param sort query string false "排序字段 (created_at/downloads/rating)" default(created_at)
+// @Success 200 {object} model.AssetListResponse
+// @Failure 500 {object} middleware.ErrorResponse
+// @Router /assets [get]
 func (h *AssetHandler) List(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
@@ -322,6 +365,17 @@ func (h *AssetHandler) List(c *gin.Context) {
 	})
 }
 
+// GetByID godoc
+// @Summary 获取资产详情
+// @Description 通过 ID 获取单个资产的详细信息
+// @Tags assets
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "资产 UUID"
+// @Success 200 {object} model.Asset
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 404 {object} middleware.ErrorResponse
+// @Router /assets/{id} [get]
 func (h *AssetHandler) GetByID(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -357,6 +411,19 @@ func (h *AssetHandler) GetByID(c *gin.Context) {
 	middleware.RespondOK(c, asset)
 }
 
+// Download godoc
+// @Summary 下载资产文件
+// @Description 下载资产的 zip 文件
+// @Tags assets
+// @Produce application/zip
+// @Security BearerAuth
+// @Param id path string true "资产 UUID"
+// @Param version query string false "版本号，不填则下载当前版本"
+// @Success 200 {file} binary
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 403 {object} middleware.ErrorResponse
+// @Failure 404 {object} middleware.ErrorResponse
+// @Router /assets/{id}/download [get]
 func (h *AssetHandler) Download(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -406,6 +473,15 @@ func (h *AssetHandler) Download(c *gin.Context) {
 	}
 }
 
+// ListVersions godoc
+// @Summary 获取资产版本列表
+// @Tags assets
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "资产 UUID"
+// @Success 200 {array} model.AssetVersion
+// @Failure 400 {object} middleware.ErrorResponse
+// @Router /assets/{id}/versions [get]
 func (h *AssetHandler) ListVersions(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -425,6 +501,22 @@ func (h *AssetHandler) ListVersions(c *gin.Context) {
 	middleware.RespondOK(c, versions)
 }
 
+// UploadVersion godoc
+// @Summary 上传新版本
+// @Description 为已有资产上传新版本文件
+// @Tags assets
+// @Accept multipart/form-data
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "资产 UUID"
+// @Param version formData string true "版本号 (x.y.z)"
+// @Param changelog formData string false "变更日志"
+// @Param file formData file true "zip 文件"
+// @Success 201 {object} model.AssetVersion
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 403 {object} middleware.ErrorResponse
+// @Failure 409 {object} middleware.ErrorResponse
+// @Router /assets/{id}/versions [post]
 func (h *AssetHandler) UploadVersion(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -507,8 +599,15 @@ func (h *AssetHandler) UploadVersion(c *gin.Context) {
 		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to save file")
 		return
 	}
+	dst.Close()
 
-	changelog := c.PostForm("changelog")
+	if err := security.ScanZip(filePath); err != nil {
+		os.Remove(filePath)
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_FILE", err.Error())
+		return
+	}
+
+	changelog := html.EscapeString(c.PostForm("changelog"))
 	var changelogPtr *string
 	if changelog != "" {
 		changelogPtr = &changelog
@@ -545,6 +644,20 @@ func (h *AssetHandler) UploadVersion(c *gin.Context) {
 	middleware.RespondCreated(c, av)
 }
 
+// SetCurrentVersion godoc
+// @Summary 设置当前版本
+// @Description 将指定版本设为当前版本
+// @Tags assets
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "资产 UUID"
+// @Param body body object true "版本信息 {version}"
+// @Success 200 {object} model.Asset
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 403 {object} middleware.ErrorResponse
+// @Failure 404 {object} middleware.ErrorResponse
+// @Router /assets/{id}/versions/current [patch]
 func (h *AssetHandler) SetCurrentVersion(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -600,6 +713,20 @@ func (h *AssetHandler) SetCurrentVersion(c *gin.Context) {
 	middleware.RespondOK(c, updated)
 }
 
+// Update godoc
+// @Summary 更新资产信息
+// @Description 更新资产名称、描述和标签
+// @Tags assets
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "资产 UUID"
+// @Param body body object true "更新信息 {name, description, tags}"
+// @Success 200 {object} model.Asset
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 403 {object} middleware.ErrorResponse
+// @Failure 404 {object} middleware.ErrorResponse
+// @Router /assets/{id} [patch]
 func (h *AssetHandler) Update(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -654,7 +781,7 @@ func (h *AssetHandler) Update(c *gin.Context) {
 		newStatus = model.AssetStatusPending
 	}
 
-	if err := h.assetRepo.Update(c.Request.Context(), id, req.Name, req.Description, req.Tags, newStatus); err != nil {
+	if err := h.assetRepo.Update(c.Request.Context(), id, html.EscapeString(req.Name), html.EscapeString(req.Description), req.Tags, newStatus); err != nil {
 		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update asset")
 		return
 	}
@@ -668,6 +795,18 @@ func (h *AssetHandler) Update(c *gin.Context) {
 	middleware.RespondOK(c, updated)
 }
 
+// Delete godoc
+// @Summary 删除资产
+// @Description 删除资产及其所有版本文件
+// @Tags assets
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "资产 UUID"
+// @Success 200 {object} object
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 403 {object} middleware.ErrorResponse
+// @Failure 404 {object} middleware.ErrorResponse
+// @Router /assets/{id} [delete]
 func (h *AssetHandler) Delete(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -699,6 +838,15 @@ func (h *AssetHandler) Delete(c *gin.Context) {
 	middleware.RespondOK(c, gin.H{"message": "Asset deleted successfully"})
 }
 
+// PopularTags godoc
+// @Summary 获取热门标签
+// @Description 获取使用频率最高的标签列表
+// @Tags tags
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {array} repository.TagCount
+// @Failure 500 {object} middleware.ErrorResponse
+// @Router /tags/popular [get]
 func (h *AssetHandler) PopularTags(c *gin.Context) {
 	tags, err := h.assetRepo.PopularTags(c.Request.Context(), 20)
 	if err != nil {
@@ -711,6 +859,16 @@ func (h *AssetHandler) PopularTags(c *gin.Context) {
 	middleware.RespondOK(c, tags)
 }
 
+// ToggleFavorite godoc
+// @Summary 收藏/取消收藏资产
+// @Tags assets
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "资产 UUID"
+// @Success 200 {object} object
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 404 {object} middleware.ErrorResponse
+// @Router /assets/{id}/favorite [post]
 func (h *AssetHandler) ToggleFavorite(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -751,6 +909,19 @@ func (h *AssetHandler) ToggleFavorite(c *gin.Context) {
 
 // ===== Dependencies =====
 
+// AddDependency godoc
+// @Summary 添加资产依赖
+// @Tags assets
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "资产 UUID"
+// @Param body body object true "依赖信息 {asset_id}"
+// @Success 201 {object} object
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 403 {object} middleware.ErrorResponse
+// @Failure 409 {object} middleware.ErrorResponse
+// @Router /assets/{id}/dependencies [post]
 func (h *AssetHandler) AddDependency(c *gin.Context) {
 	assetID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -805,6 +976,15 @@ func (h *AssetHandler) AddDependency(c *gin.Context) {
 	middleware.RespondCreated(c, gin.H{"message": "Dependency added"})
 }
 
+// ListDependencies godoc
+// @Summary 获取资产依赖列表
+// @Tags assets
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "资产 UUID"
+// @Success 200 {array} model.AssetDependency
+// @Failure 400 {object} middleware.ErrorResponse
+// @Router /assets/{id}/dependencies [get]
 func (h *AssetHandler) ListDependencies(c *gin.Context) {
 	assetID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -824,6 +1004,18 @@ func (h *AssetHandler) ListDependencies(c *gin.Context) {
 	middleware.RespondOK(c, deps)
 }
 
+// DeleteDependency godoc
+// @Summary 移除资产依赖
+// @Tags assets
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "资产 UUID"
+// @Param dep_id path string true "依赖资产 UUID"
+// @Success 200 {object} object
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 403 {object} middleware.ErrorResponse
+// @Failure 404 {object} middleware.ErrorResponse
+// @Router /assets/{id}/dependencies/{dep_id} [delete]
 func (h *AssetHandler) DeleteDependency(c *gin.Context) {
 	assetID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -867,6 +1059,19 @@ func (h *AssetHandler) DeleteDependency(c *gin.Context) {
 
 // ===== Install =====
 
+// InstallAsset godoc
+// @Summary 安装资产
+// @Description 记录用户安装资产，更新安装计数
+// @Tags assets
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "资产 UUID"
+// @Param body body object false "安装信息 {instance_id}"
+// @Success 200 {object} object
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 404 {object} middleware.ErrorResponse
+// @Router /assets/{id}/install [post]
 func (h *AssetHandler) InstallAsset(c *gin.Context) {
 	assetID, err := uuid.Parse(c.Param("id"))
 	if err != nil {

@@ -22,7 +22,7 @@ func uploadZipAsset(t *testing.T, r http.Handler, apiKey, name, assetType, versi
 	_ = writer.WriteField("version", version)
 	_ = writer.WriteField("changelog", "initial")
 	part, _ := writer.CreateFormFile("file", "asset.zip")
-	part.Write(append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("zip content")...))
+	part.Write(makeMinimalZip())
 	writer.Close()
 
 	req := httptest.NewRequest("POST", "/api/v1/assets", body)

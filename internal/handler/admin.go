@@ -21,6 +21,17 @@ func NewAdminHandler(assetRepo repository.AssetRepository, notificationRepo repo
 	return &AdminHandler{assetRepo: assetRepo, notificationRepo: notificationRepo}
 }
 
+// ListAssets godoc
+// @Summary [管理员] 获取资产列表
+// @Tags admin
+// @Produce json
+// @Security BearerAuth
+// @Param status query string false "状态过滤 (pending/approved/rejected)" default(pending)
+// @Param page query int false "页码" default(1)
+// @Param page_size query int false "每页数量" default(20)
+// @Success 200 {object} model.AssetListResponse
+// @Failure 403 {object} middleware.ErrorResponse
+// @Router /admin/assets [get]
 func (h *AdminHandler) ListAssets(c *gin.Context) {
 	// Defense in depth: verify admin role from context
 	isAdmin, ok := c.Get(middleware.ContextIsAdmin)
@@ -64,6 +75,17 @@ func (h *AdminHandler) ListAssets(c *gin.Context) {
 	})
 }
 
+// Approve godoc
+// @Summary [管理员] 审核通过资产
+// @Tags admin
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "资产 UUID"
+// @Success 200 {object} object
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 403 {object} middleware.ErrorResponse
+// @Failure 404 {object} middleware.ErrorResponse
+// @Router /admin/assets/{id}/approve [post]
 func (h *AdminHandler) Approve(c *gin.Context) {
 	// Defense in depth: verify admin role from context
 	isAdmin, ok := c.Get(middleware.ContextIsAdmin)
@@ -106,6 +128,19 @@ func (h *AdminHandler) Approve(c *gin.Context) {
 	middleware.RespondOK(c, gin.H{"message": "Asset approved", "id": id})
 }
 
+// Reject godoc
+// @Summary [管理员] 拒绝资产
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "资产 UUID"
+// @Param body body model.RejectRequest true "拒绝原因"
+// @Success 200 {object} object
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 403 {object} middleware.ErrorResponse
+// @Failure 404 {object} middleware.ErrorResponse
+// @Router /admin/assets/{id}/reject [post]
 func (h *AdminHandler) Reject(c *gin.Context) {
 	// Defense in depth: verify admin role from context
 	isAdmin, ok := c.Get(middleware.ContextIsAdmin)

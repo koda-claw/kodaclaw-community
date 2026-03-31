@@ -21,6 +21,19 @@ func NewReviewHandler(reviewRepo repository.ReviewRepository, assetRepo reposito
 	return &ReviewHandler{reviewRepo: reviewRepo, assetRepo: assetRepo}
 }
 
+// Create godoc
+// @Summary 创建资产评论
+// @Tags reviews
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "资产 UUID"
+// @Param body body model.CreateReviewRequest true "评论内容"
+// @Success 201 {object} model.Review
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 404 {object} middleware.ErrorResponse
+// @Failure 409 {object} middleware.ErrorResponse
+// @Router /assets/{id}/reviews [post]
 func (h *ReviewHandler) Create(c *gin.Context) {
 	assetID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -79,6 +92,17 @@ func (h *ReviewHandler) Create(c *gin.Context) {
 	middleware.RespondCreated(c, review)
 }
 
+// List godoc
+// @Summary 获取资产评论列表
+// @Tags reviews
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "资产 UUID"
+// @Param page query int false "页码" default(1)
+// @Param page_size query int false "每页数量" default(20)
+// @Success 200 {object} model.ReviewListResponse
+// @Failure 400 {object} middleware.ErrorResponse
+// @Router /assets/{id}/reviews [get]
 func (h *ReviewHandler) List(c *gin.Context) {
 	assetID, err := uuid.Parse(c.Param("id"))
 	if err != nil {

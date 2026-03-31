@@ -1,6 +1,8 @@
 package router
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/vanzheng/kodaclaw-community/internal/handler"
 	"github.com/vanzheng/kodaclaw-community/internal/middleware"
@@ -15,7 +17,7 @@ func Setup(
 	adminH *handler.AdminHandler,
 	userH *handler.UserHandler,
 	userRepo repository.UserRepository,
-	readLimiter, writeLimiter middleware.RateLimiter,
+	readLimiter, writeLimiter, uploadLimiter middleware.RateLimiter,
 ) {
 	engine.Use(gin.Recovery())
 	engine.Use(middleware.ErrorHandler())
@@ -37,6 +39,9 @@ func Setup(
 	// Create auth checker
 	checker := middleware.NewAuthChecker(userRepo)
 
+	// Independent rate limiters for upload and download
+	downloadLimiter := middleware.NewMemoryRateLimiter(30, time.Minute)
+
 	// Auth endpoints that require authentication
 	authWriteGroup := v1.Group("/auth")
 	authWriteGroup.Use(middleware.RateLimitMiddleware(writeLimiter, 20))
@@ -53,7 +58,6 @@ func Setup(
 		readGroup.GET("/tags/popular", assetH.PopularTags)
 		readGroup.GET("/assets", assetH.List)
 		readGroup.GET("/assets/:id", assetH.GetByID)
-		readGroup.GET("/assets/:id/download", assetH.Download)
 		readGroup.GET("/assets/:id/versions", assetH.ListVersions)
 		readGroup.GET("/assets/:id/reviews", reviewH.List)
 		readGroup.GET("/assets/:id/dependencies", assetH.ListDependencies)
@@ -64,12 +68,27 @@ func Setup(
 		readGroup.GET("/users/:id/assets", userH.ListAssets)
 	}
 
+	// Download endpoint (30/min)
+	downloadGroup := v1.Group("")
+	downloadGroup.Use(middleware.RateLimitMiddleware(downloadLimiter, 30))
+	downloadGroup.Use(middleware.AuthMiddleware(checker))
+	{
+		downloadGroup.GET("/assets/:id/download", assetH.Download)
+	}
+
+	// Upload endpoint (5/min)
+	uploadGroup := v1.Group("")
+	uploadGroup.Use(middleware.RateLimitMiddleware(uploadLimiter, 5))
+	uploadGroup.Use(middleware.AuthMiddleware(checker))
+	{
+		uploadGroup.POST("/assets", assetH.Create)
+	}
+
 	// Write endpoints (POST)
 	writeGroup := v1.Group("")
 	writeGroup.Use(middleware.RateLimitMiddleware(writeLimiter, 20))
 	writeGroup.Use(middleware.AuthMiddleware(checker))
 	{
-		writeGroup.POST("/assets", assetH.Create)
 		writeGroup.POST("/assets/:id/favorite", assetH.ToggleFavorite)
 		writeGroup.POST("/assets/:id/reviews", reviewH.Create)
 		writeGroup.POST("/assets/:id/versions", assetH.UploadVersion)
