@@ -5,8 +5,25 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.release.outputs.upload_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: softprops/action-gh-release@v2
+        id: release
+        with:
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+
   build-release:
+    needs: create-release
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -29,19 +46,22 @@ jobs:
         with:
           go-version: '1.25'
 
-      - name: Build CLI
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: 0
-        run: go build -ldflags="-s -w" -o kc-community ./cmd/cli/
+      - name: Set binary extension
+        run: |
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            echo "EXT=.exe" >> $GITHUB_ENV
+          else
+            echo "EXT=" >> $GITHUB_ENV
+          fi
 
-      - name: Build Server
+      - name: Build
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
-        run: go build -ldflags="-s -w" -o kc-server ./cmd/server/
+        run: |
+          go build -ldflags="-s -w" -o kc-community${{ env.EXT }} ./cmd/cli/
+          go build -ldflags="-s -w" -o kc-server${{ env.EXT }} ./cmd/server/
 
       - name: Package (Unix)
         if: matrix.goos != 'windows'
@@ -54,39 +74,9 @@ jobs:
         run: |
           7z a kodaclaw-community-${{ matrix.goos }}-${{ matrix.goarch }}.zip kc-community.exe kc-server.exe
 
-      - name: Upload Artifact (Unix)
-        if: matrix.goos != 'windows'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: kodaclaw-community-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz
-          asset_name: kodaclaw-community-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz
-          asset_content_type: application/gzip
-
-      - name: Upload Artifact (Windows)
-        if: matrix.goos == 'windows'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: kodaclaw-community-${{ matrix.goos }}-${{ matrix.goarch }}.zip
-          asset_name: kodaclaw-community-${{ matrix.goos }}-${{ matrix.goarch }}.zip
-          asset_content_type: application/zip
-
-  create-release:
-    needs: []
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Create Release
+      - name: Upload release asset
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          files: |
+            kodaclaw-community-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz
+            kodaclaw-community-${{ matrix.goos }}-${{ matrix.goarch }}.zip
