@@ -76,5 +76,8 @@ func (r *assetVersionRepo) ListByAssetID(ctx context.Context, assetID uuid.UUID)
 		}
 		versions = append(versions, av)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return versions, nil
 }

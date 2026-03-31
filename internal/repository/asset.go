@@ -156,6 +156,9 @@ func (r *assetRepo) List(ctx context.Context, filter AssetFilter) ([]model.Asset
 		}
 		assets = append(assets, a)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
 
 	return assets, total, nil
 }

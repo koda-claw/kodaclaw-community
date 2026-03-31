@@ -14,8 +14,8 @@ import (
 
 var (
 	ErrUserNotFound   = errors.New("user not found")
-	ErrUsernameExists = errors.New("username already exists")
-	ErrAPIKeyExists   = errors.New("api key already exists")
+	ErrDuplicateUsername = errors.New("username already exists")
+	ErrDuplicateAPIKey   = errors.New("api key already exists")
 )
 
 type UserRepository interface {
@@ -43,9 +43,9 @@ func (r *userRepo) Create(ctx context.Context, user *model.User) error {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			if strings.Contains(pgErr.ConstraintName, "username") {
-				return ErrUsernameExists
+				return ErrDuplicateUsername
 			}
-			return ErrAPIKeyExists
+			return ErrDuplicateAPIKey
 		}
 	}
 	return err
