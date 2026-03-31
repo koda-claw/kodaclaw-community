@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -595,45 +596,176 @@ func newSetVersionCmd() *cobra.Command {
 	return cmd
 }
 
+// fetchPendingAssets returns pending assets from the admin API.
+func fetchPendingAssets(creds *credentials) ([]map[string]interface{}, int, error) {
+	endpoint := creds.BaseURL + "/api/v1/admin/assets?status=pending&page_size=100"
+	resp, err := doJSON("GET", endpoint, creds.APIKey, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Items []map[string]interface{} `json:"items"`
+		Total int                      `json:"total"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, 0, fmt.Errorf("failed to decode response: %w", err)
+	}
+	if resp.StatusCode >= 400 {
+		return nil, 0, fmt.Errorf("API error (status %d)", resp.StatusCode)
+	}
+	return result.Items, result.Total, nil
+}
+
+// resolveAssetID maps a number (1-based index into pending list) or UUID string to an asset ID.
+// Returns (assetID, assetName, error).
+func resolveAssetID(creds *credentials, arg string) (string, string, error) {
+	idx, err := strconv.Atoi(arg)
+	if err != nil {
+		// Not a number — treat as UUID directly.
+		return arg, "", nil
+	}
+	items, _, err := fetchPendingAssets(creds)
+	if err != nil {
+		return "", "", fmt.Errorf("获取待审核列表失败: %w", err)
+	}
+	if idx < 1 || idx > len(items) {
+		return "", "", fmt.Errorf("编号 %d 超出范围（共 %d 个待审核资产）", idx, len(items))
+	}
+	item := items[idx-1]
+	id, _ := item["id"].(string)
+	name, _ := item["name"].(string)
+	return id, name, nil
+}
+
 func newAdminCmd() *cobra.Command {
 	adminCmd := &cobra.Command{
 		Use:   "admin",
 		Short: "Admin operations",
 	}
 
+	pending := &cobra.Command{
+		Use:   "pending",
+		Short: "List pending assets waiting for review",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			creds := mustLoadCreds()
+			items, total, err := fetchPendingAssets(creds)
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("待审核资产 (共 %d 个):\n", total)
+			for i, item := range items {
+				name, _ := item["name"].(string)
+				version := "-"
+				if v, ok := item["current_version"].(string); ok && v != "" {
+					version = v
+				}
+				author, _ := item["author_name"].(string)
+				id, _ := item["id"].(string)
+				desc, _ := item["description"].(string)
+				if len(desc) > 60 {
+					desc = desc[:60] + "..."
+				}
+				createdAt := ""
+				if ts, ok := item["created_at"].(string); ok {
+					if t, err := time.Parse(time.RFC3339Nano, ts); err == nil {
+						createdAt = t.Format("2006-01-02 15:04:05")
+					} else if t, err := time.Parse(time.RFC3339, ts); err == nil {
+						createdAt = t.Format("2006-01-02 15:04:05")
+					} else {
+						createdAt = ts
+					}
+				}
+
+				fmt.Printf("\n  [%d] %s v%s by %s\n", i+1, name, version, author)
+				fmt.Printf("      ID: %s\n", id)
+				if desc != "" {
+					fmt.Printf("      描述: %s\n", desc)
+				}
+				if createdAt != "" {
+					fmt.Printf("      提交时间: %s\n", createdAt)
+				}
+			}
+			if total == 0 {
+				fmt.Println("\n  （暂无待审核资产）")
+			}
+			return nil
+		},
+	}
+
 	approve := &cobra.Command{
-		Use:   "approve <asset_id>",
-		Short: "Approve a pending asset",
+		Use:   "approve <asset_id|number>",
+		Short: "Approve a pending asset (use number from 'admin pending' or full UUID)",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			creds := mustLoadCreds()
-			resp, err := doJSON("POST", creds.BaseURL+"/api/v1/admin/assets/"+args[0]+"/approve", creds.APIKey, nil)
+			assetID, assetName, err := resolveAssetID(creds, args[0])
 			if err != nil {
 				exitErr(err.Error())
 			}
-			handleResp(resp)
+			resp, err := doJSON("POST", creds.BaseURL+"/api/v1/admin/assets/"+assetID+"/approve", creds.APIKey, nil)
+			if err != nil {
+				exitErr(err.Error())
+			}
+			defer resp.Body.Close()
+			var result interface{}
+			if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+				exitErr(fmt.Sprintf("failed to decode response: %v", err))
+			}
+			if resp.StatusCode >= 400 {
+				enc := json.NewEncoder(os.Stderr)
+				enc.SetIndent("", "  ")
+				_ = enc.Encode(result)
+				os.Exit(1)
+			}
+			label := assetID
+			if assetName != "" {
+				label = fmt.Sprintf("%s (ID: %s)", assetName, assetID)
+			}
+			fmt.Printf("已审核通过: %s\n", label)
 		},
 	}
 
 	var rejectReason string
 	reject := &cobra.Command{
-		Use:   "reject <asset_id>",
-		Short: "Reject a pending asset",
+		Use:   "reject <asset_id|number>",
+		Short: "Reject a pending asset (use number from 'admin pending' or full UUID)",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			creds := mustLoadCreds()
-			body := map[string]string{"reason": rejectReason}
-			resp, err := doJSON("POST", creds.BaseURL+"/api/v1/admin/assets/"+args[0]+"/reject", creds.APIKey, body)
+			assetID, assetName, err := resolveAssetID(creds, args[0])
 			if err != nil {
 				exitErr(err.Error())
 			}
-			handleResp(resp)
+			body := map[string]string{"reason": rejectReason}
+			resp, err := doJSON("POST", creds.BaseURL+"/api/v1/admin/assets/"+assetID+"/reject", creds.APIKey, body)
+			if err != nil {
+				exitErr(err.Error())
+			}
+			defer resp.Body.Close()
+			var result interface{}
+			if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+				exitErr(fmt.Sprintf("failed to decode response: %v", err))
+			}
+			if resp.StatusCode >= 400 {
+				enc := json.NewEncoder(os.Stderr)
+				enc.SetIndent("", "  ")
+				_ = enc.Encode(result)
+				os.Exit(1)
+			}
+			label := assetID
+			if assetName != "" {
+				label = fmt.Sprintf("%s (ID: %s)", assetName, assetID)
+			}
+			fmt.Printf("已拒绝: %s\n原因: %s\n", label, rejectReason)
 		},
 	}
 	reject.Flags().StringVar(&rejectReason, "reason", "", "Rejection reason (required)")
 	_ = reject.MarkFlagRequired("reason")
 
-	adminCmd.AddCommand(approve, reject)
+	adminCmd.AddCommand(pending, approve, reject)
 	return adminCmd
 }
 
