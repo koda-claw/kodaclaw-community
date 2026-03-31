@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -44,6 +45,13 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	apiKey := uuid.New().String() + uuid.New().String()
 	apiKey = apiKey[:32]
 
+	// Admin: if register request includes the admin API key, grant admin privileges
+	isAdmin := false
+	adminKey := os.Getenv("ADMIN_API_KEY")
+	if c.GetHeader("X-Admin-Key") == adminKey && adminKey != "" {
+		isAdmin = true
+	}
+
 	user := &model.User{
 		ID:           uuid.New(),
 		Username:     req.Username,
@@ -53,7 +61,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		InstanceID:   req.InstanceID,
 		DisplayName:  req.DisplayName,
 		Description:  req.Description,
-		IsAdmin:      false,
+		IsAdmin:      isAdmin,
 	}
 
 	if err := h.userRepo.Create(c.Request.Context(), user); err != nil {

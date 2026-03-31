@@ -26,6 +26,7 @@ type AssetFilter struct {
 	Type     string
 	Tag      string
 	Query    string
+	Status   string // empty = public (approved only), set value = admin filter by specific status
 	Page     int
 	PageSize int
 }
@@ -60,9 +61,18 @@ func (r *assetRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.Asset, er
 }
 
 func (r *assetRepo) List(ctx context.Context, filter AssetFilter) ([]model.Asset, int, error) {
-	where := []string{"a.status = 'approved'"}
+	where := []string{}
 	args := []interface{}{}
 	argIdx := 1
+
+	// Status filter: empty = public (approved only), set = filter by specific status
+	if filter.Status != "" {
+		where = append(where, fmt.Sprintf("a.status = $%d", argIdx))
+		args = append(args, filter.Status)
+		argIdx++
+	} else {
+		where = append(where, "a.status = 'approved'")
+	}
 
 	if filter.Type != "" {
 		where = append(where, fmt.Sprintf("a.type = $%d", argIdx))

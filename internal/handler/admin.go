@@ -25,14 +25,9 @@ func (h *AdminHandler) ListAssets(c *gin.Context) {
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 
 	filter := repository.AssetFilter{
+		Status:   status,
 		Page:     page,
 		PageSize: pageSize,
-	}
-
-	// Admin can see all assets, override the status filter
-	if status != "" {
-		// We need a special query for admin that doesn't filter by approved
-		// For now, use the existing list with a special path
 	}
 
 	assets, total, err := h.assetRepo.List(c.Request.Context(), filter)
