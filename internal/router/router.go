@@ -22,8 +22,13 @@ func Setup(
 	engine.Use(gin.Recovery())
 	engine.Use(middleware.ErrorHandler())
 
-	engine.GET("/api/v1/health", func(c *gin.Context) {
+	// Static frontend
+	engine.StaticFile("/", "./internal/static/index.html")
+	engine.Static("/css", "./internal/static/css")
+	engine.Static("/js", "./internal/static/js")
 	engine.StaticFile("/openapi.yaml", "./docs/openapi.yaml")
+
+	engine.GET("/api/v1/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok", "version": "0.1.0"})
 	})
 
