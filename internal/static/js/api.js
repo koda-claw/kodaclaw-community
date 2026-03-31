@@ -6,7 +6,7 @@ const API = (() => {
     return localStorage.getItem('api_key') || '';
   }
 
-  async function request(method, path, body) {
+  async function request(method, path, body, options = {}) {
     const headers = { 'Content-Type': 'application/json' };
     const key = getKey();
     if (key) headers['Authorization'] = 'Bearer ' + key;
@@ -19,7 +19,10 @@ const API = (() => {
     if (res.status === 401) {
       localStorage.removeItem('api_key');
       localStorage.removeItem('user');
-      window.location.hash = '#/login';
+      // Only redirect to login if this was an authenticated request
+      if (!options.public) {
+        window.location.hash = '#/login';
+      }
       throw new Error('未授权，请登录');
     }
     if (res.status === 429) {
@@ -36,9 +39,9 @@ const API = (() => {
   }
 
   return {
-    get: (path) => request('GET', path),
-    post: (path, body) => request('POST', path, body),
-    patch: (path, body) => request('PATCH', path, body),
-    delete: (path) => request('DELETE', path),
+    get: (path, opts) => request('GET', path, undefined, opts),
+    post: (path, body, opts) => request('POST', path, body, opts),
+    patch: (path, body, opts) => request('PATCH', path, body, opts),
+    delete: (path, opts) => request('DELETE', path, undefined, opts),
   };
 })();

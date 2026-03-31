@@ -30,11 +30,11 @@ const AssetsPage = (() => {
       const listEl = document.getElementById('asset-list');
       listEl.innerHTML = Components.spinner();
       try {
-        let path = `/assets?page=${page}&page_size=20`;
+        let path = `/public/skills?page=${page}&page_size=20`;
         if (q) path += `&q=${encodeURIComponent(q)}`;
-        if (type) path += `&asset_type=${type}`;
-        const data = await API.get(path);
-        const assets = data.assets || data.data || data || [];
+        if (type) path += `&type=${encodeURIComponent(type)}`;
+        const data = await API.get(path, { public: true });
+        const assets = data.items || data.assets || data.data || data || [];
         if (!assets.length) {
           listEl.innerHTML = Components.emptyState('暂无资产');
           document.getElementById('pagination').innerHTML = '';
@@ -42,12 +42,12 @@ const AssetsPage = (() => {
         }
         listEl.innerHTML = assets.map(Components.assetCard).join('');
         listEl.querySelectorAll('.asset-card').forEach(card => {
-          card.addEventListener('click', () => {
-            window.location.hash = '#/asset/' + card.dataset.id;
-          });
-          card.addEventListener('keydown', e => {
-            if (e.key === 'Enter') window.location.hash = '#/asset/' + card.dataset.id;
-          });
+          const target = () => {
+            // Use name for public API, store id as fallback
+            window.location.hash = '#/asset/' + encodeURIComponent(card.dataset.name || card.dataset.id);
+          };
+          card.addEventListener('click', target);
+          card.addEventListener('keydown', e => { if (e.key === 'Enter') target(); });
         });
         // 简单分页
         const total = data.total || assets.length;
@@ -69,7 +69,6 @@ const AssetsPage = (() => {
       }
     }
 
-    // 搜索按钮
     document.getElementById('btn-search').addEventListener('click', () => {
       q = document.getElementById('search-q').value.trim();
       type = document.getElementById('filter-type').value;
@@ -83,16 +82,18 @@ const AssetsPage = (() => {
       document.getElementById('btn-search').click();
     });
 
-    // 热门标签
+    // 热门标签 (extract from public list)
     try {
-      const tagsData = await API.get('/tags/popular');
-      const tags = tagsData.tags || tagsData || [];
+      const tagsData = await API.get('/public/skills', { public: true });
+      const allAssets = tagsData.items || [];
+      const tagSet = new Set();
+      allAssets.forEach(a => (a.tags || []).forEach(t => tagSet.add(t)));
+      const tags = [...tagSet].slice(0, 15);
       const cloud = document.getElementById('tag-cloud');
       if (tags.length) {
-        cloud.innerHTML = tags.map(t => {
-          const name = typeof t === 'string' ? t : (t.name || t.tag);
-          return `<span class="tag tag-clickable" data-tag="${Components.escHtml(name)}">${Components.escHtml(name)}</span>`;
-        }).join('');
+        cloud.innerHTML = tags.map(t =>
+          `<span class="tag tag-clickable" data-tag="${Components.escHtml(t)}">${Components.escHtml(t)}</span>`
+        ).join('');
         cloud.querySelectorAll('.tag-clickable').forEach(el => {
           el.addEventListener('click', () => {
             document.getElementById('search-q').value = el.dataset.tag;
@@ -100,35 +101,55 @@ const AssetsPage = (() => {
           });
         });
       }
-    } catch { /* 标签云加载失败不影响主列表 */ }
+    } catch { /* ignore */ }
 
     load();
   }
 
   // ---- 详情页 ----
-  async function renderDetail(container, id) {
+  async function renderDetail(container, identifier) {
     container.innerHTML = `
       <div class="back-link"><a href="#/assets">← 返回列表</a></div>
       <div id="asset-detail">${Components.spinner()}</div>
     `;
 
     try {
-      const data = await API.get('/assets/' + id);
-      const asset = data.asset || data;
+      // identifier can be a name (URL-encoded) or UUID
+      let asset;
+      let isPublic = false;
+
+      // Try public API by name first
+      try {
+        const data = await API.get('/public/skills/' + identifier, { public: true });
+        asset = data.asset || data;
+        isPublic = true;
+      } catch {
+        // Fallback to authenticated API by UUID
+        try {
+          const data = await API.get('/assets/' + identifier);
+          asset = data.asset || data;
+        } catch {
+          throw new Error('资产不存在');
+        }
+      }
+
       const tags = (asset.tags || []).map(t => `<span class="tag">${Components.escHtml(t)}</span>`).join('');
-      const typeLabel = asset.asset_type === 'soul' ? 'SOUL' : 'SKILL';
-      const typeClass = asset.asset_type === 'soul' ? 'badge-soul' : 'badge-skill';
-      const rating = asset.average_rating ? Number(asset.average_rating).toFixed(1) : '—';
-      const stars = asset.average_rating ? '★'.repeat(Math.round(asset.average_rating)) + '☆'.repeat(5 - Math.round(asset.average_rating)) : '☆☆☆☆☆';
+      const assetType = asset.type || asset.asset_type;
+      const typeLabel = assetType === 'soul' ? 'SOUL' : 'SKILL';
+      const typeClass = assetType === 'soul' ? 'badge-soul' : 'badge-skill';
+      const ratingVal = Number(asset.avg_rating || asset.average_rating || 0);
+      const rating = ratingVal ? ratingVal.toFixed(1) : '—';
+      const stars = ratingVal ? '★'.repeat(Math.round(ratingVal)) + '☆'.repeat(5 - Math.round(ratingVal)) : '☆☆☆☆☆';
+      const assetName = asset.name || identifier;
 
       document.getElementById('asset-detail').innerHTML = `
         <div class="detail-card">
           <div class="detail-header">
             <span class="badge ${typeClass}">${typeLabel}</span>
-            <h1 class="detail-title">${Components.escHtml(asset.name)}</h1>
+            <h1 class="detail-title">${Components.escHtml(assetName)}</h1>
             <div class="detail-meta">
               <span>作者：@${Components.escHtml(asset.author_name || asset.author_id || '')}</span>
-              <span>下载：↓ ${asset.install_count || 0}</span>
+              <span>下载：↓ ${asset.install_count || asset.download_count || 0}</span>
               <span>评分：${stars} ${rating}</span>
             </div>
           </div>
@@ -136,10 +157,10 @@ const AssetsPage = (() => {
           <p class="detail-desc">${Components.escHtml(asset.description || '')}</p>
           <div class="detail-tags">${tags}</div>
 
-          ${asset.content_preview ? `<div class="detail-preview"><pre>${Components.escHtml(asset.content_preview)}</pre></div>` : ''}
+          ${asset.skill_content ? `<div class="detail-preview"><pre>${Components.escHtml(asset.skill_content)}</pre></div>` : ''}
 
           <div class="detail-actions">
-            <a href="/api/v1/assets/${id}/download" class="btn btn-primary" id="btn-download">下载</a>
+            <button class="btn btn-primary" id="btn-download">下载</button>
             <button class="btn btn-outline" id="btn-fav">收藏</button>
           </div>
         </div>
@@ -149,7 +170,7 @@ const AssetsPage = (() => {
           <div id="reviews-list">${Components.spinner()}</div>
         </div>
 
-        <div class="section">
+        <div class="section" id="review-form-section">
           <h2 class="section-title">发表评论</h2>
           <form id="form-review">
             <div class="field">
@@ -168,58 +189,69 @@ const AssetsPage = (() => {
         </div>
       `;
 
-      // 下载按钮加上 auth header
+      // Hide review form if not logged in
+      if (!Auth.isLoggedIn()) {
+        const formSection = document.getElementById('review-form-section');
+        if (formSection) formSection.innerHTML = '<p style="color:#888;text-align:center;padding:16px;">登录后可发表评论</p>';
+      }
+
+      // Download button - public download, no auth needed
       document.getElementById('btn-download').addEventListener('click', (e) => {
         e.preventDefault();
+        const downloadUrl = isPublic
+          ? '/api/v1/public/skills/' + encodeURIComponent(assetName) + '/download'
+          : '/api/v1/assets/' + (asset.id || identifier) + '/download';
         const key = localStorage.getItem('api_key');
-        if (!key) { window.location.hash = '#/login'; return; }
-        // 用 fetch 下载
-        fetch('/api/v1/assets/' + id + '/download', {
-          headers: { 'Authorization': 'Bearer ' + key }
-        }).then(res => {
-          if (!res.ok) throw new Error('下载失败');
-          return res.blob();
-        }).then(blob => {
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = asset.name + '.yaml';
-          a.click();
-          URL.revokeObjectURL(url);
-        }).catch(err => alert(err.message));
+        const headers = {};
+        if (key) headers['Authorization'] = 'Bearer ' + key;
+
+        fetch(downloadUrl, { headers })
+          .then(res => {
+            if (!res.ok) throw new Error('下载失败 (' + res.status + ')');
+            return res.blob();
+          })
+          .then(blob => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = assetName.replace(/[^a-zA-Z0-9\u4e00-\u9fff_-]/g, '_') + '.zip';
+            a.click();
+            URL.revokeObjectURL(url);
+          })
+          .catch(err => alert(err.message));
       });
 
-      // 收藏
+      // Favorite
       document.getElementById('btn-fav').addEventListener('click', async () => {
         if (!Auth.isLoggedIn()) { window.location.hash = '#/login'; return; }
         try {
-          await API.post('/assets/' + id + '/favorite', {});
+          await API.post('/assets/' + (asset.id || identifier) + '/favorite', {});
           document.getElementById('btn-fav').textContent = '已收藏 ♥';
         } catch (err) {
           alert(err.message);
         }
       });
 
-      // 加载评论
-      loadReviews(id);
+      // Load reviews
+      loadReviews(asset.id || identifier);
 
-      // 发表评论
-      document.getElementById('form-review').addEventListener('submit', async (e) => {
+      // Submit review
+      document.getElementById('form-review')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         if (!Auth.isLoggedIn()) { window.location.hash = '#/login'; return; }
         const fd = new FormData(e.target);
         const msg = document.getElementById('review-msg');
-        const rating = parseInt(fd.get('rating'));
-        if (!rating) { msg.textContent = '请选择评分'; msg.className = 'msg error'; return; }
+        const ratingVal = parseInt(fd.get('rating'));
+        if (!ratingVal) { msg.textContent = '请选择评分'; msg.className = 'msg error'; return; }
         try {
-          await API.post('/assets/' + id + '/reviews', {
-            rating,
+          await API.post('/assets/' + (asset.id || identifier) + '/reviews', {
+            rating: ratingVal,
             comment: fd.get('comment') || '',
           });
           msg.textContent = '评论已提交！';
           msg.className = 'msg success';
           e.target.reset();
-          loadReviews(id);
+          loadReviews(asset.id || identifier);
         } catch (err) {
           msg.textContent = err.message;
           msg.className = 'msg error';
@@ -240,8 +272,8 @@ const AssetsPage = (() => {
       el.innerHTML = reviews.length
         ? reviews.map(Components.reviewCard).join('')
         : Components.emptyState('暂无评论，来写第一条吧！');
-    } catch (err) {
-      el.innerHTML = Components.errorBox(err.message);
+    } catch {
+      el.innerHTML = Components.emptyState('登录后可查看评论');
     }
   }
 

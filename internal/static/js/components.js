@@ -2,14 +2,18 @@
 const Components = (() => {
 
   function assetCard(asset) {
-    const tags = (asset.tags || []).map(t => `<span class="tag">${escHtml(t)}</span>`).join('');
-    const typeLabel = asset.asset_type === 'soul' ? 'SOUL' : 'SKILL';
-    const typeClass = asset.asset_type === 'soul' ? 'badge-soul' : 'badge-skill';
-    const rating = asset.average_rating ? Number(asset.average_rating).toFixed(1) : '—';
-    const stars = asset.average_rating ? '★'.repeat(Math.round(asset.average_rating)) + '☆'.repeat(5 - Math.round(asset.average_rating)) : '☆☆☆☆☆';
+    const tags = (asset.tags || []).map(t =>
+      `<span class="tag">${escHtml(t)}</span>`
+    ).join('');
+    const assetType = asset.type || asset.asset_type;
+    const typeLabel = assetType === 'soul' ? 'SOUL' : 'SKILL';
+    const typeClass = assetType === 'soul' ? 'badge-soul' : 'badge-skill';
+    const ratingVal = Number(asset.avg_rating || asset.average_rating || 0);
+    const rating = ratingVal ? ratingVal.toFixed(1) : '—';
+    const stars = ratingVal ? '★'.repeat(Math.round(ratingVal)) + '☆'.repeat(5 - Math.round(ratingVal)) : '☆☆☆☆☆';
 
     return `
-      <div class="asset-card" data-id="${asset.id}" role="button" tabindex="0">
+      <div class="asset-card" data-id="${asset.id}" data-name="${escHtml(asset.name)}" role="button" tabindex="0">
         <div class="card-header">
           <span class="badge ${typeClass}">${typeLabel}</span>
           <span class="card-rating" title="${rating}/5">${stars} ${rating}</span>
@@ -18,7 +22,7 @@ const Components = (() => {
         <p class="card-desc">${escHtml(asset.description || '')}</p>
         <div class="card-footer">
           <span class="card-author">@${escHtml(asset.author_name || asset.author_id || '')}</span>
-          <span class="card-dl">↓ ${asset.install_count || 0}</span>
+          <span class="card-dl">↓ ${asset.install_count || asset.download_count || 0}</span>
         </div>
         <div class="card-tags">${tags}</div>
       </div>
