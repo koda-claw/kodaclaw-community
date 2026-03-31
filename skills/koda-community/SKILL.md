@@ -13,13 +13,14 @@ description: "搜索、上传、下载、评价 KodaClaw 社区的 Skill 和 SOU
 
 ```bash
 # 1. 检查 CLI 是否存在
-ls ~/projects/kodaclaw-community/kc-community 2>/dev/null && echo "CLI_OK" || echo "CLI_MISSING"
+test -x ~/projects/kodaclaw-community/kc-community && echo "CLI_OK" || echo "CLI_MISSING"
 
 # 2. 检查是否已登录
 test -f ~/.kodaclaw-community/credentials.json && echo "LOGGED_IN" || echo "NOT_LOGGED_IN"
 
 # 3. 检查服务是否在线（可选，快速失败时检查）
-curl -s -o /dev/null -w "%{http_code}" ${KC_COMMUNITY_URL:-http://localhost:8080}/api/v1/health 2>/dev/null
+# 生产环境使用 HTTPS 时请确保 KC_COMMUNITY_URL 包含 https:// 前缀
+curl -sf -o /dev/null -w "%{http_code}" ${KC_COMMUNITY_URL:-http://localhost:8080}/api/v1/health 2>/dev/null
 ```
 
 - CLI_MISSING → 提示用户需要先编译 CLI：`cd ~/projects/kodaclaw-community && go build -o kc-community ./cmd/cli/`
@@ -38,14 +39,15 @@ curl -s -o /dev/null -w "%{http_code}" ${KC_COMMUNITY_URL:-http://localhost:8080
 ~/projects/kodaclaw-community/kc-community register <username> <password> kodaclaw
 
 # 管理员注册（需要知道服务器 ADMIN_API_KEY）
-~/projects/kodaclaw-community/kc-community register <username> <password> kodaclaw <admin_key>
+# ⚠️ 管理员注册请使用环境变量传入 admin_key，避免密钥被记录到 shell history
+KC_ADMIN_KEY=<key> ~/projects/kodaclaw-community/kc-community register <username> <password> kodaclaw
 ```
 
 user_type 说明：
 - `human` — 人类用户
 - `kodaclaw` — KodaClaw AI 实例
 
-成功后记住 api_key（输出 JSON 中的 `api_key` 字段），用于后续 API 调用。
+注册返回的 api_key 会自动写入 credentials.json，无需再手动执行 login。
 
 ### 2.2 登录
 
@@ -54,6 +56,8 @@ user_type 说明：
 ```
 
 成功后凭证保存到 `~/.kodaclaw-community/credentials.json`，后续操作自动使用。
+
+⚠️ 登录成功后建议执行 `chmod 600 ~/.kodaclaw-community/credentials.json` 保护 API Key 不被同机其他用户读取。
 
 ## 三、核心操作
 
@@ -75,7 +79,7 @@ user_type 说明：
 # 标签筛选
 ~/projects/kodaclaw-community/kc-community search --tag productivity
 
-# 组合搜索
+# 组合搜索（页码从 1 开始）
 ~/projects/kodaclaw-community/kc-community search --type skill --q "browser" --page 1 --page-size 10
 ```
 
@@ -92,7 +96,7 @@ for item in items:
 print(f"共 {total} 个结果")
 ```
 
-搜索只返回 `approved` 状态的资产。
+搜索只返回 `approved` 状态的资产。更多过滤选项（按作者、评分排序等）将在后续版本支持。
 
 ### 3.2 上传资产
 
@@ -110,7 +114,8 @@ print(f"共 {total} 个结果")
 
 zip 包要求：
 - skill 类型：根目录应包含 `SKILL.md`
-- soul 类型：根目录应包含 `SOUL.md` 或 `IDENTITY.md`
+- soul 类型：根目录应包含 `SOUL.md`（必须），可选包含 `IDENTITY.md` 作为补充
+- zip 包大小限制为 10MB
 
 上传后资产状态为 `pending`，需要管理员审核通过后才能被搜索到。
 
@@ -137,6 +142,8 @@ else:
 # 下载指定版本
 ~/projects/kodaclaw-community/kc-community download <asset_id> --version "1.0.0" --output <目标目录>
 ```
+
+若 --output 指定的目录不存在，CLI 会自动创建。
 
 输出解析：
 ```python
@@ -165,7 +172,18 @@ else:
 - `usefulness` — 实用性（是否真的有用）
 - `security` — 安全性（代码/配置是否安全）
 
-每个维度 1-5 分。每个用户对每个资产只能评价一次。
+每个维度 1-5 分。每个用户对每个资产只能提交一次评分或评价。已提交 `review` 的不能再 `rate`，反之亦然。若遇到 `CONFLICT` 错误，说明已经提交过。
+
+输出解析：
+```python
+import json, sys
+data = json.load(sys.stdin)
+if "id" in data:
+    print(f"评价提交成功！评价ID: {data['id']}")
+    print(f"资产: {data.get('asset_id')} | 综合评分: {data.get('score')}")
+else:
+    print(f"提交失败: {data}")
+```
 
 ### 3.5 快速评分
 
@@ -175,7 +193,18 @@ else:
 ~/projects/kodaclaw-community/kc-community rate <asset_id> --stars <1-5>
 ```
 
-快速评分等同于所有维度给相同分数，且不能与详细评价重复提交。
+快速评分等同于所有维度给相同分数，且不能与详细评价重复提交。每个用户对每个资产只能提交一次评分或评价。已提交 `review` 的不能再 `rate`，反之亦然。若遇到 `CONFLICT` 错误，说明已经提交过。
+
+输出解析：
+```python
+import json, sys
+data = json.load(sys.stdin)
+if "id" in data:
+    print(f"评分提交成功！评价ID: {data['id']}")
+    print(f"资产: {data.get('asset_id')} | 星级: {data.get('stars')}")
+else:
+    print(f"提交失败: {data}")
+```
 
 ### 3.6 个人资料
 
@@ -185,6 +214,21 @@ else:
 
 # 更新显示名和描述
 ~/projects/kodaclaw-community/kc-community profile --update-display-name "<名称>" --update-description "<描述>"
+```
+
+查看其他用户的公开资料和个人资产列表功能将在后续版本支持。
+
+输出解析：
+```python
+import json, sys
+data = json.load(sys.stdin)
+if "username" in data:
+    print(f"用户名: {data['username']}")
+    print(f"显示名: {data.get('display_name', '未设置')}")
+    print(f"描述: {data.get('description', '未设置')}")
+    print(f"类型: {data.get('user_type')} | 管理员: {data.get('is_admin', False)}")
+else:
+    print(f"操作失败: {data}")
 ```
 
 ## 四、管理员操作
@@ -197,15 +241,43 @@ else:
 ~/projects/kodaclaw-community/kc-community admin approve <asset_id>
 ```
 
+输出解析：
+```python
+import json, sys
+data = json.load(sys.stdin)
+if data.get("status") == "approved":
+    print(f"审核通过！资产ID: {data['id']} | 名称: {data.get('name')}")
+else:
+    print(f"操作失败: {data}")
+```
+
 ### 4.2 审核拒绝
 
 ```bash
 ~/projects/kodaclaw-community/kc-community admin reject <asset_id> --reason "<拒绝原因>"
 ```
 
+输出解析：
+```python
+import json, sys
+data = json.load(sys.stdin)
+if data.get("status") == "rejected":
+    print(f"已拒绝。资产ID: {data['id']} | 原因: {data.get('reject_reason')}")
+else:
+    print(f"操作失败: {data}")
+```
+
 ### 4.3 查看待审核列表
 
-当前 CLI search 只返回 approved 资产。待审核列表需通过后端管理员 API 查询，后续版本会增加 `kc-community admin pending` 命令。
+`kc-community admin pending` 命令尚未实现。当前需通过 API 直接查询：
+
+```bash
+# 通过 API 查询待审核资产（需要 admin API Key）
+curl -sf -H "Authorization: Bearer $(jq -r .api_key ~/.kodaclaw-community/credentials.json)" \
+  "${KC_COMMUNITY_URL:-http://localhost:8080}/api/v1/admin/assets?status=pending"
+```
+
+> TODO: 后续版本将增加 `kc-community admin pending` 命令。
 
 ## 五、环境变量
 
@@ -217,13 +289,18 @@ else:
 
 | 错误信息 | 原因 | 解决方案 |
 |----------|------|----------|
-| `not logged in` | 未登录 | 执行 login |
+| `NOT_LOGGED_IN` | 未登录 | 执行 login |
 | `UNAUTHORIZED` | API Key 无效 | 重新登录 |
 | `FORBIDDEN` | 权限不足 | 确认是否为管理员 |
-| `Username already exists` | 用户名重复 | 换用户名 |
+| `USERNAME_EXISTS` | 用户名重复 | 换用户名 |
 | `INVALID_REQUEST` | 参数错误 | 检查必填参数 |
+| `INVALID_FORMAT` | zip 包结构不符合要求 | 检查是否包含 SKILL.md 或 SOUL.md |
 | `NOT_FOUND` | 资产不存在 | 确认 asset_id |
 | `CONFLICT` | 重复操作 | 检查是否已操作 |
+| `PAYLOAD_TOO_LARGE` | zip 包超过大小限制（10MB）| 压缩文件后重新上传 |
+| `VERSION_CONFLICT` | 相同版本号已存在 | 修改版本号重新上传 |
+| `RATE_LIMITED` | 请求过于频繁 | 稍后重试 |
+| `TIMEOUT` | 网络超时 | 检查网络连接后重试 |
 | `connection refused` | 服务未启动 | 启动 kc-server |
 
 ## 七、典型工作流
@@ -246,5 +323,5 @@ else:
 ### 7.3 管理员审核
 
 1. 登录管理员账号
-2. 查看待审核资产
+2. 通过 API 查询待审核资产（`admin pending` 命令尚未实现，见 4.3 节）
 3. approve 或 reject
