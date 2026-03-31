@@ -54,10 +54,22 @@ func saveCreds(c *credentials) error {
 }
 
 func getBaseURL() string {
+	if c, err := loadCreds(); err == nil && c.BaseURL != "" {
+		return strings.TrimRight(c.BaseURL, "/")
+	}
 	if u := os.Getenv("KC_COMMUNITY_URL"); u != "" {
 		return strings.TrimRight(u, "/")
 	}
-	return "http://localhost:8080"
+	return "https://community.ai-koda.com"
+}
+
+// --- HTTP client ---
+
+var httpClient = &http.Client{
+	Transport: &http.Transport{
+		ForceAttemptHTTP2: false,
+	},
+	Timeout: 30 * time.Second,
 }
 
 // --- HTTP helpers ---
@@ -81,7 +93,7 @@ func doJSON(method, endpoint, apiKey string, body interface{}) (*http.Response, 
 	if apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
-	return http.DefaultClient.Do(req)
+	return httpClient.Do(req)
 }
 
 func doJSONWithHeader(method, endpoint, apiKey string, body interface{}, headerKey, headerVal string) (*http.Response, error) {
@@ -104,7 +116,7 @@ func doJSONWithHeader(method, endpoint, apiKey string, body interface{}, headerK
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 	req.Header.Set(headerKey, headerVal)
-	return http.DefaultClient.Do(req)
+	return httpClient.Do(req)
 }
 
 
@@ -210,7 +222,26 @@ func newRegisterCmd() *cobra.Command {
 			if err != nil {
 				exitErr(err.Error())
 			}
-			handleResp(resp)
+			defer resp.Body.Close()
+
+			var result map[string]interface{}
+			if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+				exitErr(fmt.Sprintf("failed to decode response: %v", err))
+			}
+			if resp.StatusCode >= 400 {
+				enc := json.NewEncoder(os.Stderr)
+				enc.SetIndent("", "  ")
+				_ = enc.Encode(result)
+				os.Exit(1)
+			}
+
+			apiKey, _ := result["api_key"].(string)
+			if apiKey != "" {
+				if err := saveCreds(&credentials{APIKey: apiKey, BaseURL: base}); err != nil {
+					exitErr(fmt.Sprintf("failed to save credentials: %v", err))
+				}
+			}
+			printOut(result)
 		},
 	}
 }
@@ -287,7 +318,7 @@ func newDownloadCmd() *cobra.Command {
 			}
 			req.Header.Set("Authorization", "Bearer "+creds.APIKey)
 
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := httpClient.Do(req)
 			if err != nil {
 				exitErr(err.Error())
 			}
@@ -392,7 +423,7 @@ func newUploadCmd() *cobra.Command {
 			req.Header.Set("Content-Type", w.FormDataContentType())
 			req.Header.Set("Authorization", "Bearer "+creds.APIKey)
 
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := httpClient.Do(req)
 			if err != nil {
 				exitErr(err.Error())
 			}
@@ -561,7 +592,7 @@ func newUploadVersionCmd() *cobra.Command {
 			req.Header.Set("Content-Type", w.FormDataContentType())
 			req.Header.Set("Authorization", "Bearer "+creds.APIKey)
 
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := httpClient.Do(req)
 			if err != nil {
 				exitErr(err.Error())
 			}
@@ -892,7 +923,7 @@ func newInstallCmd() *cobra.Command {
 
 			// 1. Fetch SKILL.md from public API (no auth needed)
 			skillURL := baseURL + "/api/v1/public/skills/" + url.PathEscape(name) + "/SKILL.md"
-			resp, err := http.Get(skillURL)
+			resp, err := httpClient.Get(skillURL)
 			if err != nil {
 				exitErr(fmt.Sprintf("failed to fetch skill: %v", err))
 			}
@@ -931,7 +962,7 @@ func newInstallCmd() *cobra.Command {
 			if err == nil {
 				// Try to find the asset by name to get its ID
 				searchURL := baseURL + "/api/v1/public/skills?type=skill&q=" + url.QueryEscape(name)
-				sResp, sErr := http.Get(searchURL)
+				sResp, sErr := httpClient.Get(searchURL)
 				if sErr == nil {
 					defer sResp.Body.Close()
 					var result struct {
@@ -947,7 +978,7 @@ func newInstallCmd() *cobra.Command {
 								installURL := baseURL + "/api/v1/assets/" + item.ID + "/install"
 								req, _ := http.NewRequest("POST", installURL, nil)
 								req.Header.Set("Authorization", "Bearer "+creds.APIKey)
-								http.DefaultClient.Do(req) // fire and forget
+								httpClient.Do(req) // fire and forget
 								break
 							}
 						}
@@ -966,6 +997,79 @@ func newInstallCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&workspaceDir, "workspace", "", "KodaClaw workspace directory (default: $KC_WORKSPACE or ~/.kodaclaw)")
 	return cmd
+}
+
+func newStatusCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "status",
+		Short: "Show current authentication status",
+		Run: func(cmd *cobra.Command, args []string) {
+			var baseURL, baseURLSource, maskedKey string
+
+			creds, err := loadCreds()
+			if err == nil && creds.BaseURL != "" {
+				baseURL = strings.TrimRight(creds.BaseURL, "/")
+				baseURLSource = "credentials.json"
+			} else if u := os.Getenv("KC_COMMUNITY_URL"); u != "" {
+				baseURL = strings.TrimRight(u, "/")
+				baseURLSource = "KC_COMMUNITY_URL env"
+			} else {
+				baseURL = "https://community.ai-koda.com"
+				baseURLSource = "default"
+			}
+
+			if err != nil || creds.APIKey == "" {
+				printOut(map[string]interface{}{
+					"status":          "NOT_LOGGED_IN",
+					"base_url":        baseURL,
+					"base_url_source": baseURLSource,
+				})
+				return
+			}
+
+			key := creds.APIKey
+			if len(key) > 8 {
+				maskedKey = key[:8] + "..."
+			} else {
+				maskedKey = "***"
+			}
+
+			resp, verifyErr := doJSON("GET", baseURL+"/api/v1/users/me", creds.APIKey, nil)
+			if verifyErr != nil {
+				printOut(map[string]interface{}{
+					"status":          "ERROR",
+					"base_url":        baseURL,
+					"base_url_source": baseURLSource,
+					"api_key":         maskedKey,
+					"error":           verifyErr.Error(),
+				})
+				return
+			}
+			defer resp.Body.Close()
+
+			var user map[string]interface{}
+			_ = json.NewDecoder(resp.Body).Decode(&user)
+
+			if resp.StatusCode >= 400 {
+				printOut(map[string]interface{}{
+					"status":          "INVALID_KEY",
+					"base_url":        baseURL,
+					"base_url_source": baseURLSource,
+					"api_key":         maskedKey,
+				})
+				return
+			}
+
+			username, _ := user["username"].(string)
+			printOut(map[string]interface{}{
+				"status":          "LOGGED_IN",
+				"base_url":        baseURL,
+				"base_url_source": baseURLSource,
+				"api_key":         maskedKey,
+				"username":        username,
+			})
+		},
+	}
 }
 
 func newAdminCmd() *cobra.Command {
@@ -1108,6 +1212,7 @@ func main() {
 	root.AddCommand(
 		newLoginCmd(),
 		newRegisterCmd(),
+		newStatusCmd(),
 		newTagsCmd(),
 		newSearchCmd(),
 		newDownloadCmd(),
