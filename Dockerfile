@@ -24,6 +24,8 @@ COPY --from=builder /app/kc-server .
 COPY --from=builder /app/kc-community .
 
 RUN mkdir -p /app/data/assets
+COPY --from=builder /app/internal/static ./internal/static
+COPY --from=builder /app/docs/openapi.yaml ./docs/
 
 EXPOSE 8080
 
