@@ -33,6 +33,7 @@ docker-data/
 
 kc-server
 kc-community
+cli
 
 # claude 
 .claude/setting.local.json
