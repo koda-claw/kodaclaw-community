@@ -19,6 +19,7 @@ func Setup(
 	userRepo repository.UserRepository,
 	readLimiter, writeLimiter, uploadLimiter middleware.RateLimiter,
 	publicH *handler.PublicHandler,
+	githubH *handler.GitHubHandler,
 ) {
 	engine.Use(gin.Recovery())
 	engine.Use(middleware.ErrorHandler())
@@ -44,6 +45,8 @@ func Setup(
 	{
 		authGroup.POST("/register", authH.Register)
 		authGroup.POST("/login", authH.Login)
+		authGroup.GET("/github", githubH.GetAuthURL)
+		authGroup.GET("/github/callback", githubH.Callback)
 	}
 
 	// Create auth checker
@@ -129,10 +132,8 @@ func Setup(
 	publicGroup.Use(middleware.RateLimitMiddleware(readLimiter, 100))
 	{
 		publicGroup.GET("/skills", publicH.ListSkills)
-		publicGroup.GET("/skills/download/:id", publicH.DownloadSkillByID)
 		publicGroup.GET("/skills/:name", publicH.GetSkill)
 		publicGroup.GET("/skills/:name/SKILL.md", publicH.GetSkillContent)
 		publicGroup.GET("/skills/:name/download", publicH.DownloadSkill)
-		publicGroup.GET("/reviews/:id", publicH.ListReviews)
 	}
 }

@@ -20,11 +20,14 @@ var (
 
 type UserRepository interface {
 	Create(ctx context.Context, user *model.User) error
+	CreateWithGitHub(ctx context.Context, user *model.User) error
 	GetByID(ctx context.Context, id uuid.UUID) (*model.User, error)
 	GetByUsername(ctx context.Context, username string) (*model.User, error)
 	GetByAPIKey(ctx context.Context, apiKey string) (*model.User, error)
+	GetByGitHubID(ctx context.Context, githubID int64) (*model.User, error)
 	UpdateProfile(ctx context.Context, id uuid.UUID, displayName, description *string) error
 	UpdatePassword(ctx context.Context, id uuid.UUID, passwordHash string) error
+	UpdateAvatarURL(ctx context.Context, id uuid.UUID, avatarURL string) error
 }
 
 type userRepo struct {
@@ -33,6 +36,21 @@ type userRepo struct {
 
 func NewUserRepository(pool *pgxpool.Pool) UserRepository {
 	return &userRepo{pool: pool}
+}
+
+func RunGitHubMigrations(ctx context.Context, pool *pgxpool.Pool) error {
+	migrations := []string{
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS github_id BIGINT`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS github_username VARCHAR(100)`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_github_id ON users(github_id) WHERE github_id IS NOT NULL`,
+	}
+	for _, sql := range migrations {
+		if _, err := pool.Exec(ctx, sql); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *userRepo) Create(ctx context.Context, user *model.User) error {
@@ -104,4 +122,43 @@ func (r *userRepo) GetByAPIKey(ctx context.Context, apiKey string) (*model.User,
 		return nil, ErrUserNotFound
 	}
 	return &u, err
+}
+
+func (r *userRepo) GetByGitHubID(ctx context.Context, githubID int64) (*model.User, error) {
+	var u model.User
+	err := r.pool.QueryRow(ctx,
+		`SELECT id, username, password_hash, api_key, user_type, instance_id, display_name, description, is_admin, created_at, updated_at
+		 FROM users WHERE github_id = $1`, githubID).
+		Scan(&u.ID, &u.Username, &u.PasswordHash, &u.APIKey, &u.UserType,
+			&u.InstanceID, &u.DisplayName, &u.Description, &u.IsAdmin, &u.CreatedAt, &u.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrUserNotFound
+	}
+	return &u, err
+}
+
+func (r *userRepo) UpdateAvatarURL(ctx context.Context, id uuid.UUID, avatarURL string) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2`,
+		avatarURL, id)
+	return err
+}
+
+func (r *userRepo) CreateWithGitHub(ctx context.Context, user *model.User) error {
+	_, err := r.pool.Exec(ctx,
+		`INSERT INTO users (id, username, password_hash, api_key, user_type, instance_id, display_name, description, is_admin, github_id, github_username, avatar_url)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+		user.ID, user.Username, user.PasswordHash, user.APIKey, user.UserType,
+		user.InstanceID, user.DisplayName, user.Description, user.IsAdmin,
+		user.GitHubID, user.GitHubUsername, user.AvatarURL)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			if strings.Contains(pgErr.ConstraintName, "username") {
+				return ErrDuplicateUsername
+			}
+			return ErrDuplicateAPIKey
+		}
+	}
+	return err
 }

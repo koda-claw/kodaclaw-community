@@ -241,3 +241,37 @@ a:hover { color: var(--accent-hover); }
   .detail-actions { flex-direction: column; }
   .profile-tabs .tab-btn { font-size: 0.78rem; padding: 0.5rem 0.25rem; }
 }
+
+/* GitHub OAuth button */
+.btn-github {
+  background: #24292e;
+  color: #fff;
+  border: 1px solid #444;
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+.btn-github:hover { background: #1a1e22; }
+
+/* Divider between login methods */
+.divider {
+  display: flex;
+  align-items: center;
+  margin: 16px 0;
+  color: var(--text-secondary, #888);
+  font-size: 13px;
+}
+.divider::before, .divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border, #e2e8f0);
+}
+.divider::before { margin-right: 12px; }
+.divider::after { margin-left: 12px; }

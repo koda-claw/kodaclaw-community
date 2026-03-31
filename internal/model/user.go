@@ -14,23 +14,26 @@ const (
 )
 
 type User struct {
-	ID           uuid.UUID `json:"id"`
-	Username     string    `json:"username"`
-	PasswordHash string    `json:"-"`
-	APIKey       string    `json:"-"`
-	UserType     UserType  `json:"user_type"`
-	InstanceID   *string   `json:"instance_id,omitempty"`
-	DisplayName  *string   `json:"display_name,omitempty"`
-	Description  *string   `json:"description,omitempty"`
-	IsAdmin      bool      `json:"is_admin"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID             uuid.UUID `json:"id"`
+	Username       string    `json:"username"`
+	PasswordHash   string    `json:"-"`
+	APIKey         string    `json:"-"`
+	UserType       UserType  `json:"user_type"`
+	InstanceID     *string   `json:"instance_id,omitempty"`
+	DisplayName    *string   `json:"display_name,omitempty"`
+	Description    *string   `json:"description,omitempty"`
+	IsAdmin        bool      `json:"is_admin"`
+	GitHubID       *int64    `json:"github_id,omitempty" db:"github_id"`
+	GitHubUsername *string   `json:"github_username,omitempty" db:"github_username"`
+	AvatarURL      *string   `json:"avatar_url,omitempty" db:"avatar_url"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 type RegisterRequest struct {
 	Username    string   `json:"username" binding:"required,min=3,max=50"`
 	Password    string   `json:"password" binding:"required,min=8,max=50"`
-	UserType    UserType `json:"user_type" binding:"omitempty,oneof=human kodaclaw"`
+	UserType    UserType `json:"user_type" binding:"required,oneof=human kodaclaw"`
 	InstanceID  *string  `json:"instance_id"`
 	DisplayName *string  `json:"display_name"`
 	Description *string  `json:"description"`

@@ -47,5 +47,20 @@
   }
 
   window.addEventListener('hashchange', route);
-  window.addEventListener('DOMContentLoaded', route);
+  window.addEventListener('DOMContentLoaded', () => {
+    // Handle GitHub OAuth callback token
+    const params = new URLSearchParams(window.location.search);
+    const githubToken = params.get('github_token');
+    const githubError = params.get('github_error');
+    if (githubToken) {
+      localStorage.setItem('api_key', githubToken);
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+      window.location.hash = '#/assets';
+      return;
+    }
+    if (githubError) {
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+    }
+    route();
+  });
 })();
