@@ -213,7 +213,7 @@ func (h *AssetHandler) List(c *gin.Context) {
 	}
 
 	sort := c.DefaultQuery("sort", "created_at")
-	if sort != "downloads" && sort != "created_at" {
+	if sort != "downloads" && sort != "created_at" && sort != "rating" {
 		sort = "created_at"
 	}
 
@@ -536,6 +536,18 @@ func (h *AssetHandler) SetCurrentVersion(c *gin.Context) {
 	}
 
 	middleware.RespondOK(c, updated)
+}
+
+func (h *AssetHandler) PopularTags(c *gin.Context) {
+	tags, err := h.assetRepo.PopularTags(c.Request.Context(), 20)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get popular tags")
+		return
+	}
+	if tags == nil {
+		tags = []repository.TagCount{}
+	}
+	middleware.RespondOK(c, tags)
 }
 
 func (h *AssetHandler) ToggleFavorite(c *gin.Context) {

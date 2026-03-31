@@ -89,6 +89,7 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 			created_at TIMESTAMPTZ DEFAULT NOW()
 		)`,
 		`ALTER TABLE assets ADD COLUMN IF NOT EXISTS download_count INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE assets ADD COLUMN IF NOT EXISTS avg_rating DOUBLE PRECISION NOT NULL DEFAULT 0`,
 		`CREATE TABLE IF NOT EXISTS asset_downloads (
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			asset_id UUID NOT NULL REFERENCES assets(id),

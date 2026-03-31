@@ -22,6 +22,13 @@ type AssetRepository interface {
 	UpdateStatus(ctx context.Context, id uuid.UUID, status model.AssetStatus, reason *string) error
 	UpdateCurrentVersion(ctx context.Context, id uuid.UUID, version string) error
 	IncrementDownloadCount(ctx context.Context, assetID, userID uuid.UUID) error
+	UpdateAvgRating(ctx context.Context, assetID uuid.UUID) error
+	PopularTags(ctx context.Context, limit int) ([]TagCount, error)
+}
+
+type TagCount struct {
+	Tag   string `json:"tag"`
+	Count int    `json:"count"`
 }
 
 type AssetFilter struct {
@@ -30,7 +37,7 @@ type AssetFilter struct {
 	Query    string
 	Status   string // empty = public (approved only), set value = admin filter by specific status
 	AuthorID string // filter by author
-	Sort     string // "downloads", "created_at" (default: "created_at")
+	Sort     string // "downloads", "created_at", "rating" (default: "created_at")
 	Page     int
 	PageSize int
 }
@@ -82,10 +89,10 @@ func (r *assetRepo) CreateWithVersion(ctx context.Context, asset *model.Asset, v
 func (r *assetRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.Asset, error) {
 	var a model.Asset
 	err := r.pool.QueryRow(ctx,
-		`SELECT a.id, a.name, a.type, a.description, a.author_id, u.username, a.status, a.tags, a.current_version, a.rejection_reason, a.download_count, a.created_at, a.updated_at
+		`SELECT a.id, a.name, a.type, a.description, a.author_id, u.username, a.status, a.tags, a.current_version, a.rejection_reason, a.download_count, a.avg_rating, a.created_at, a.updated_at
 		 FROM assets a JOIN users u ON a.author_id = u.id WHERE a.id = $1`, id).
 		Scan(&a.ID, &a.Name, &a.Type, &a.Description, &a.AuthorID, &a.AuthorName,
-			&a.Status, &a.Tags, &a.CurrentVersion, &a.RejectionReason, &a.DownloadCount, &a.CreatedAt, &a.UpdatedAt)
+			&a.Status, &a.Tags, &a.CurrentVersion, &a.RejectionReason, &a.DownloadCount, &a.AvgRating, &a.CreatedAt, &a.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrAssetNotFound
 	}
@@ -149,10 +156,12 @@ func (r *assetRepo) List(ctx context.Context, filter AssetFilter) ([]model.Asset
 	orderBy := "a.created_at DESC"
 	if filter.Sort == "downloads" {
 		orderBy = "a.download_count DESC, a.created_at DESC"
+	} else if filter.Sort == "rating" {
+		orderBy = "a.avg_rating DESC, a.created_at DESC"
 	}
 
 	querySQL := fmt.Sprintf(
-		`SELECT a.id, a.name, a.type, a.description, a.author_id, u.username, a.status, a.tags, a.current_version, a.rejection_reason, a.download_count, a.created_at, a.updated_at
+		`SELECT a.id, a.name, a.type, a.description, a.author_id, u.username, a.status, a.tags, a.current_version, a.rejection_reason, a.download_count, a.avg_rating, a.created_at, a.updated_at
 		 FROM assets a JOIN users u ON a.author_id = u.id WHERE %s ORDER BY %s LIMIT $%d OFFSET $%d`,
 		whereClause, orderBy, argIdx, argIdx+1)
 	args = append(args, filter.PageSize, offset)
@@ -167,7 +176,7 @@ func (r *assetRepo) List(ctx context.Context, filter AssetFilter) ([]model.Asset
 	for rows.Next() {
 		var a model.Asset
 		if err := rows.Scan(&a.ID, &a.Name, &a.Type, &a.Description, &a.AuthorID, &a.AuthorName,
-			&a.Status, &a.Tags, &a.CurrentVersion, &a.RejectionReason, &a.DownloadCount, &a.CreatedAt, &a.UpdatedAt); err != nil {
+			&a.Status, &a.Tags, &a.CurrentVersion, &a.RejectionReason, &a.DownloadCount, &a.AvgRating, &a.CreatedAt, &a.UpdatedAt); err != nil {
 			return nil, 0, err
 		}
 		assets = append(assets, a)
@@ -191,6 +200,39 @@ func (r *assetRepo) UpdateCurrentVersion(ctx context.Context, id uuid.UUID, vers
 		`UPDATE assets SET current_version = $1, updated_at = NOW() WHERE id = $2`,
 		version, id)
 	return err
+}
+
+func (r *assetRepo) UpdateAvgRating(ctx context.Context, assetID uuid.UUID) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE assets SET avg_rating = COALESCE(
+			(SELECT AVG((COALESCE(compatibility,0) + COALESCE(usefulness,0) + COALESCE(security,0)) / 3.0)
+			 FROM reviews WHERE asset_id = $1), 0)
+		WHERE id = $1`,
+		assetID)
+	return err
+}
+
+func (r *assetRepo) PopularTags(ctx context.Context, limit int) ([]TagCount, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT unnest(tags) as tag, COUNT(*) as count FROM assets WHERE status = 'approved' GROUP BY tag ORDER BY count DESC LIMIT $1`,
+		limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tags []TagCount
+	for rows.Next() {
+		var tc TagCount
+		if err := rows.Scan(&tc.Tag, &tc.Count); err != nil {
+			return nil, err
+		}
+		tags = append(tags, tc)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return tags, nil
 }
 
 func (r *assetRepo) IncrementDownloadCount(ctx context.Context, assetID, userID uuid.UUID) error {

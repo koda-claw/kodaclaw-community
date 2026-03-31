@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 
@@ -72,6 +73,8 @@ func (h *ReviewHandler) Create(c *gin.Context) {
 		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create review")
 		return
 	}
+
+	go h.assetRepo.UpdateAvgRating(context.Background(), assetID)
 
 	middleware.RespondCreated(c, review)
 }

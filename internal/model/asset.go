@@ -30,6 +30,7 @@ type Asset struct {
 	CurrentVersion   *string     `json:"current_version,omitempty"`
 	RejectionReason  *string     `json:"rejection_reason,omitempty"`
 	DownloadCount    int         `json:"download_count"`
+	AvgRating        float64     `json:"avg_rating"`
 	IsFavorited      bool        `json:"is_favorited,omitempty"`
 	CreatedAt        time.Time   `json:"created_at"`
 	UpdatedAt        time.Time   `json:"updated_at"`

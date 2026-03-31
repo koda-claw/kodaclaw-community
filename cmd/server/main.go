@@ -178,6 +178,7 @@ func runMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 		`CREATE INDEX IF NOT EXISTS idx_assets_type ON assets(type)`,
 		`CREATE INDEX IF NOT EXISTS idx_asset_versions_asset_created ON asset_versions(asset_id, created_at DESC)`,
 		`ALTER TABLE assets ADD COLUMN IF NOT EXISTS download_count INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE assets ADD COLUMN IF NOT EXISTS avg_rating DOUBLE PRECISION NOT NULL DEFAULT 0`,
 		`CREATE TABLE IF NOT EXISTS asset_downloads (
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			asset_id UUID NOT NULL REFERENCES assets(id),
