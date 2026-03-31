@@ -1,0 +1,9 @@
+.git
+.github
+data
+*.md
+tests/
+docker-compose.yml
+.env
+skills/
+tmp/
