@@ -172,13 +172,14 @@ func setupTestRouter(pool *pgxpool.Pool, storagePath string) *gin.Engine {
 	reviewH := handler.NewReviewHandler(reviewRepo, assetRepo)
 	adminH := handler.NewAdminHandler(assetRepo, notificationRepo)
 	userH := handler.NewUserHandlerWithNotifications(userRepo, assetRepo, favoriteRepo, notificationRepo)
+	publicH := handler.NewPublicHandler(assetRepo, versionRepo, storagePath)
 
 	readLimiter := middleware.NewMemoryRateLimiter(1000, 60)
 	uploadLimiter := middleware.NewMemoryRateLimiter(1000, 60)
 	writeLimiter := middleware.NewMemoryRateLimiter(1000, 60)
 
 	engine := gin.New()
-	router.Setup(engine, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, uploadLimiter)
+	router.Setup(engine, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, uploadLimiter, publicH)
 	return engine
 }
 

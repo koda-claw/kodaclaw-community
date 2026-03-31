@@ -16,7 +16,6 @@ var (
 // BlockedExecutableExts are file extensions that are not allowed in uploads
 var BlockedExecutableExts = map[string]bool{
 	".exe": true, ".bat": true, ".cmd": true, ".ps1": true,
-	".sh": true, ".bash": true, ".zsh": true,
 	".com": true, ".msi": true, ".dll": true, ".so": true,
 	".dylib": true, ".app": true, ".bin": true,
 	".vbs": true, ".wsf": true, ".wsh": true,

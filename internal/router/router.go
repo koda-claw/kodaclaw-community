@@ -18,6 +18,7 @@ func Setup(
 	userH *handler.UserHandler,
 	userRepo repository.UserRepository,
 	readLimiter, writeLimiter, uploadLimiter middleware.RateLimiter,
+	publicH *handler.PublicHandler,
 ) {
 	engine.Use(gin.Recovery())
 	engine.Use(middleware.ErrorHandler())
@@ -31,6 +32,9 @@ func Setup(
 	engine.GET("/api/v1/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok", "version": "0.1.0"})
 	})
+
+	// Bootstrap entry: /skill.md returns koda-community SKILL.md content
+	engine.GET("/skill.md", publicH.BootstrapSkill)
 
 	v1 := engine.Group("/api/v1")
 
@@ -118,5 +122,15 @@ func Setup(
 		adminGroup.GET("/assets", adminH.ListAssets)
 		adminGroup.POST("/assets/:id/approve", adminH.Approve)
 		adminGroup.POST("/assets/:id/reject", adminH.Reject)
+	}
+
+	// Public endpoints (no auth required, rate limited)
+	publicGroup := v1.Group("/public")
+	publicGroup.Use(middleware.RateLimitMiddleware(readLimiter, 100))
+	{
+		publicGroup.GET("/skills", publicH.ListSkills)
+		publicGroup.GET("/skills/:name", publicH.GetSkill)
+		publicGroup.GET("/skills/:name/SKILL.md", publicH.GetSkillContent)
+		publicGroup.GET("/skills/:name/download", publicH.DownloadSkill)
 	}
 }

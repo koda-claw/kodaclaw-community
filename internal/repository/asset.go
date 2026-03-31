@@ -27,6 +27,7 @@ type AssetRepository interface {
 	Update(ctx context.Context, id uuid.UUID, name, description string, tags []string, status model.AssetStatus) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	UpdateReadme(ctx context.Context, id uuid.UUID, readme, skillContent *string) error
+	GetByName(ctx context.Context, name string) (*model.Asset, error)
 }
 
 type TagCount struct {
@@ -255,6 +256,19 @@ func (r *assetRepo) Update(ctx context.Context, id uuid.UUID, name, description 
 func (r *assetRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	_, err := r.pool.Exec(ctx, `DELETE FROM assets WHERE id = $1`, id)
 	return err
+}
+
+func (r *assetRepo) GetByName(ctx context.Context, name string) (*model.Asset, error) {
+	var a model.Asset
+	err := r.pool.QueryRow(ctx,
+		`SELECT a.id, a.name, a.type, a.description, a.author_id, u.username, a.status, a.tags, a.current_version, a.rejection_reason, a.download_count, a.avg_rating, a.install_count, a.asset_readme, a.asset_skill_content, a.created_at, a.updated_at
+		 FROM assets a JOIN users u ON a.author_id = u.id WHERE a.name = $1 AND a.status = 'approved'`, name).
+		Scan(&a.ID, &a.Name, &a.Type, &a.Description, &a.AuthorID, &a.AuthorName,
+			&a.Status, &a.Tags, &a.CurrentVersion, &a.RejectionReason, &a.DownloadCount, &a.AvgRating, &a.InstallCount, &a.Readme, &a.SkillContent, &a.CreatedAt, &a.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrAssetNotFound
+	}
+	return &a, err
 }
 
 func (r *assetRepo) IncrementDownloadCount(ctx context.Context, assetID, userID uuid.UUID) error {
