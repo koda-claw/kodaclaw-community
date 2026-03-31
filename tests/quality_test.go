@@ -30,7 +30,7 @@ func TestIntegration_TagValidation(t *testing.T) {
 		_ = writer.WriteField("tags", tags)
 		_ = writer.WriteField("version", "1.0.0")
 		part, _ := writer.CreateFormFile("file", "skill.zip")
-		part.Write([]byte("zip content"))
+		part.Write(append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("zip content")...))
 		writer.Close()
 
 		req := httptest.NewRequest("POST", "/api/v1/assets", body)
@@ -312,7 +312,7 @@ func uploadAndApproveAsset(t *testing.T, r interface{ ServeHTTP(http.ResponseWri
 	_ = writer.WriteField("description", "Test asset for "+name)
 	_ = writer.WriteField("version", "1.0.0")
 	part, _ := writer.CreateFormFile("file", "skill.zip")
-	part.Write([]byte("zip content"))
+	part.Write(append([]byte{0x50, 0x4B, 0x03, 0x04}, []byte("zip content")...))
 	writer.Close()
 
 	req := httptest.NewRequest("POST", "/api/v1/assets", body)

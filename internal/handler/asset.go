@@ -71,6 +71,18 @@ func (h *AssetHandler) Create(c *gin.Context) {
 		return
 	}
 
+	// Check ZIP magic bytes (PK signature)
+	buf := make([]byte, 2)
+	n, _ := file.Read(buf)
+	if n < 2 || buf[0] != 0x50 || buf[1] != 0x4B {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_FILE", "File is not a valid ZIP archive")
+		return
+	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to process file")
+		return
+	}
+
 	// Sanitize filename to prevent path traversal
 	safeFilename := filepath.Base(header.Filename)
 

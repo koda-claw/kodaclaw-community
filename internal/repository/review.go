@@ -76,5 +76,8 @@ func (r *reviewRepo) ListByAssetID(ctx context.Context, assetID uuid.UUID, page,
 		}
 		reviews = append(reviews, rev)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
 	return reviews, total, nil
 }

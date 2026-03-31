@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"os"
 
@@ -65,6 +66,10 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	if err := h.userRepo.Create(c.Request.Context(), user); err != nil {
+		if errors.Is(err, repository.ErrDuplicateUsername) {
+			middleware.RespondError(c, http.StatusConflict, "CONFLICT", "Username already exists")
+			return
+		}
 		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create user")
 		return
 	}

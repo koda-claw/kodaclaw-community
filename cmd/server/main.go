@@ -172,6 +172,8 @@ func runMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 		`CREATE INDEX IF NOT EXISTS idx_assets_author_id ON assets(author_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_asset_versions_asset_version ON asset_versions(asset_id, version)`,
 		`CREATE INDEX IF NOT EXISTS idx_reviews_asset_created ON reviews(asset_id, created_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_assets_status ON assets(status)`,
+		`CREATE INDEX IF NOT EXISTS idx_assets_type ON assets(type)`,
 		`CREATE INDEX IF NOT EXISTS idx_asset_versions_asset_created ON asset_versions(asset_id, created_at DESC)`,
 	}
 
@@ -180,5 +182,9 @@ func runMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 			return fmt.Errorf("migration failed: %w\nSQL: %s", err, sql)
 		}
 	}
+	// pg_trgm for ILIKE search optimization
+	pool.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS pg_trgm")
+	pool.Exec(ctx, "CREATE INDEX IF NOT EXISTS idx_assets_name_trgm ON assets USING GIN (name gin_trgm_ops)")
+	pool.Exec(ctx, "CREATE INDEX IF NOT EXISTS idx_assets_description_trgm ON assets USING GIN (description gin_trgm_ops)")
 	return nil
 }
