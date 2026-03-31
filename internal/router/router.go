@@ -42,6 +42,7 @@ func Setup(
 	readGroup.Use(middleware.RateLimitMiddleware(readLimiter, 100))
 	readGroup.Use(middleware.AuthMiddleware(checker))
 	{
+		readGroup.GET("/tags/popular", assetH.PopularTags)
 		readGroup.GET("/assets", assetH.List)
 		readGroup.GET("/assets/:id", assetH.GetByID)
 		readGroup.GET("/assets/:id/download", assetH.Download)

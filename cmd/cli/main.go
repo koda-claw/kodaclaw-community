@@ -256,7 +256,7 @@ func newSearchCmd() *cobra.Command {
 	cmd.Flags().StringVar(&tag, "tag", "", "Filter by tag")
 	cmd.Flags().StringVar(&query, "q", "", "Search query")
 	cmd.Flags().StringVar(&author, "author", "", "Filter by author UUID")
-	cmd.Flags().StringVar(&sort, "sort", "", "Sort by: downloads (most downloaded), created_at (newest, default)")
+	cmd.Flags().StringVar(&sort, "sort", "", "Sort by: downloads (most downloaded), rating (highest rated), created_at (newest, default)")
 	cmd.Flags().IntVar(&page, "page", 1, "Page number")
 	cmd.Flags().IntVar(&pageSize, "page-size", 20, "Page size")
 	return cmd
@@ -831,6 +831,43 @@ func newNotificationReadAllCmd() *cobra.Command {
 	}
 }
 
+func newTagsCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "tags",
+		Short: "List popular tags",
+		Run: func(cmd *cobra.Command, args []string) {
+			creds := mustLoadCreds()
+			resp, err := doJSON("GET", creds.BaseURL+"/api/v1/tags/popular", creds.APIKey, nil)
+			if err != nil {
+				exitErr(err.Error())
+			}
+			defer resp.Body.Close()
+
+			var tags []struct {
+				Tag   string `json:"tag"`
+				Count int    `json:"count"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&tags); err != nil {
+				exitErr(fmt.Sprintf("failed to decode response: %v", err))
+			}
+			if resp.StatusCode >= 400 {
+				enc := json.NewEncoder(os.Stderr)
+				enc.SetIndent("", "  ")
+				_ = enc.Encode(tags)
+				os.Exit(1)
+			}
+
+			fmt.Printf("热门标签 (共 %d 个):\n", len(tags))
+			for i, t := range tags {
+				fmt.Printf("  [%d] %s (%d)\n", i+1, t.Tag, t.Count)
+			}
+			if len(tags) == 0 {
+				fmt.Println("  （暂无标签）")
+			}
+		},
+	}
+}
+
 func newAdminCmd() *cobra.Command {
 	adminCmd := &cobra.Command{
 		Use:   "admin",
@@ -971,6 +1008,7 @@ func main() {
 	root.AddCommand(
 		newLoginCmd(),
 		newRegisterCmd(),
+		newTagsCmd(),
 		newSearchCmd(),
 		newDownloadCmd(),
 		newUploadCmd(),
