@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -200,10 +201,16 @@ func (h *AssetHandler) List(c *gin.Context) {
 		pageSize = 20
 	}
 
+	sort := c.DefaultQuery("sort", "created_at")
+	if sort != "downloads" && sort != "created_at" {
+		sort = "created_at"
+	}
+
 	filter := repository.AssetFilter{
 		Type:     c.Query("type"),
 		Tag:      c.Query("tag"),
 		Query:    c.Query("q"),
+		Sort:     sort,
 		Page:     page,
 		PageSize: pageSize,
 	}
@@ -300,6 +307,11 @@ func (h *AssetHandler) Download(c *gin.Context) {
 
 	filePath := filepath.Join(h.storagePath, av.FileKey)
 	c.FileAttachment(filePath, fmt.Sprintf("%s-%s.zip", id, av.Version))
+
+	uid, err := uuid.Parse(userID)
+	if err == nil {
+		go h.assetRepo.IncrementDownloadCount(context.Background(), id, uid)
+	}
 }
 
 func (h *AssetHandler) ListVersions(c *gin.Context) {

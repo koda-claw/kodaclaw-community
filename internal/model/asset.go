@@ -29,6 +29,7 @@ type Asset struct {
 	Tags             []string    `json:"tags"`
 	CurrentVersion   *string     `json:"current_version,omitempty"`
 	RejectionReason  *string     `json:"rejection_reason,omitempty"`
+	DownloadCount    int         `json:"download_count"`
 	CreatedAt        time.Time   `json:"created_at"`
 	UpdatedAt        time.Time   `json:"updated_at"`
 }

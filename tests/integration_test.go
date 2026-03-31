@@ -88,6 +88,14 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 			security INT CHECK (security BETWEEN 1 AND 5),
 			created_at TIMESTAMPTZ DEFAULT NOW()
 		)`,
+		`ALTER TABLE assets ADD COLUMN IF NOT EXISTS download_count INTEGER NOT NULL DEFAULT 0`,
+		`CREATE TABLE IF NOT EXISTS asset_downloads (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			asset_id UUID NOT NULL REFERENCES assets(id),
+			user_id UUID NOT NULL REFERENCES users(id),
+			downloaded_at TIMESTAMP NOT NULL DEFAULT NOW(),
+			UNIQUE(asset_id, user_id)
+		)`,
 	}
 	for _, sql := range migrations {
 		if _, err := pool.Exec(ctx, sql); err != nil {
@@ -97,6 +105,7 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 
 	// Clean up test data (order matters for FK)
 	pool.Exec(ctx, "DELETE FROM reviews")
+	pool.Exec(ctx, "DELETE FROM asset_downloads")
 	pool.Exec(ctx, "DELETE FROM asset_versions")
 	pool.Exec(ctx, "DELETE FROM assets")
 	pool.Exec(ctx, "DELETE FROM users")
