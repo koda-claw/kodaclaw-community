@@ -237,47 +237,68 @@ else:
 
 ### 4.1 审核通过
 
+支持两种方式传入资产标识：
+
 ```bash
-~/projects/kodaclaw-community/kc-community admin approve <asset_id>
+# 方式 1：使用 admin pending 列表中的序号（推荐）
+~/projects/kodaclaw-community/kc-community admin approve 1
+
+# 方式 2：直接使用完整 UUID（向后兼容）
+~/projects/kodaclaw-community/kc-community admin approve 550e8400-e29b-41d4-a716-446655440000
 ```
 
-输出解析：
-```python
-import json, sys
-data = json.load(sys.stdin)
-if data.get("status") == "approved":
-    print(f"审核通过！资产ID: {data['id']} | 名称: {data.get('name')}")
-else:
-    print(f"操作失败: {data}")
+成功输出：
+```
+已审核通过: web-search-tool (ID: 550e8400-e29b-41d4-a716-446655440000)
 ```
 
 ### 4.2 审核拒绝
 
+支持两种方式传入资产标识：
+
 ```bash
-~/projects/kodaclaw-community/kc-community admin reject <asset_id> --reason "<拒绝原因>"
+# 方式 1：使用序号
+~/projects/kodaclaw-community/kc-community admin reject 2 --reason "<拒绝原因>"
+
+# 方式 2：使用完整 UUID（向后兼容）
+~/projects/kodaclaw-community/kc-community admin reject 6ba7b810-9dad-11d1-80b4-00c04fd430c8 --reason "<拒绝原因>"
 ```
 
-输出解析：
-```python
-import json, sys
-data = json.load(sys.stdin)
-if data.get("status") == "rejected":
-    print(f"已拒绝。资产ID: {data['id']} | 原因: {data.get('reject_reason')}")
-else:
-    print(f"操作失败: {data}")
+成功输出：
+```
+已拒绝: file-manager (ID: 6ba7b810-9dad-11d1-80b4-00c04fd430c8)
+原因: <拒绝原因>
 ```
 
 ### 4.3 查看待审核列表
 
-`kc-community admin pending` 命令尚未实现。当前需通过 API 直接查询：
-
 ```bash
-# 通过 API 查询待审核资产（需要 admin API Key）
-curl -sf -H "Authorization: Bearer $(jq -r .api_key ~/.kodaclaw-community/credentials.json)" \
-  "${KC_COMMUNITY_URL:-http://localhost:8080}/api/v1/admin/assets?status=pending"
+~/projects/kodaclaw-community/kc-community admin pending
 ```
 
-> TODO: 后续版本将增加 `kc-community admin pending` 命令。
+示例输出：
+```
+待审核资产 (共 3 个):
+
+  [1] web-search-tool v1.2.0 by alice
+      ID: 550e8400-e29b-41d4-a716-446655440000
+      描述: A web search skill for browsing the internet...
+      提交时间: 2026-03-31 10:00:00
+
+  [2] file-manager v0.9.0 by bob
+      ID: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
+      描述: Manage local files and directories...
+      提交时间: 2026-03-31 11:30:00
+```
+
+输出解析（用于后续 approve/reject）：
+```python
+import subprocess, re
+out = subprocess.check_output(["~/projects/kodaclaw-community/kc-community", "admin", "pending"], shell=False, text=True)
+# 直接使用序号即可，无需解析 ID：
+#   admin approve 1
+#   admin reject 2 --reason "..."
+```
 
 ## 五、环境变量
 
@@ -323,5 +344,5 @@ curl -sf -H "Authorization: Bearer $(jq -r .api_key ~/.kodaclaw-community/creden
 ### 7.3 管理员审核
 
 1. 登录管理员账号
-2. 通过 API 查询待审核资产（`admin pending` 命令尚未实现，见 4.3 节）
-3. approve 或 reject
+2. 执行 `admin pending` 查看待审核列表及序号
+3. `admin approve <序号>` 或 `admin reject <序号> --reason "..."`
