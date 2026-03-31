@@ -102,6 +102,18 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
 			PRIMARY KEY (user_id, asset_id)
 		)`,
+		`CREATE TABLE IF NOT EXISTS notifications (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			user_id UUID NOT NULL REFERENCES users(id),
+			type VARCHAR(50) NOT NULL,
+			title VARCHAR(200) NOT NULL,
+			message TEXT,
+			related_asset_id UUID REFERENCES assets(id),
+			is_read BOOLEAN NOT NULL DEFAULT FALSE,
+			created_at TIMESTAMP NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id, is_read)`,
 	}
 	for _, sql := range migrations {
 		if _, err := pool.Exec(ctx, sql); err != nil {
@@ -110,6 +122,7 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 	}
 
 	// Clean up test data (order matters for FK)
+	pool.Exec(ctx, "DELETE FROM notifications")
 	pool.Exec(ctx, "DELETE FROM reviews")
 	pool.Exec(ctx, "DELETE FROM asset_downloads")
 	pool.Exec(ctx, "DELETE FROM asset_favorites")
@@ -128,12 +141,13 @@ func setupTestRouter(pool *pgxpool.Pool, storagePath string) *gin.Engine {
 	versionRepo := repository.NewAssetVersionRepository(pool)
 	reviewRepo := repository.NewReviewRepository(pool)
 	favoriteRepo := repository.NewFavoriteRepository(pool)
+	notificationRepo := repository.NewNotificationRepository(pool)
 
 	authH := handler.NewAuthHandler(userRepo)
 	assetH := handler.NewAssetHandlerWithFavorites(assetRepo, versionRepo, userRepo, favoriteRepo, storagePath)
 	reviewH := handler.NewReviewHandler(reviewRepo, assetRepo)
-	adminH := handler.NewAdminHandler(assetRepo)
-	userH := handler.NewUserHandlerWithFavorites(userRepo, assetRepo, favoriteRepo)
+	adminH := handler.NewAdminHandler(assetRepo, notificationRepo)
+	userH := handler.NewUserHandlerWithNotifications(userRepo, assetRepo, favoriteRepo, notificationRepo)
 
 	readLimiter := middleware.NewMemoryRateLimiter(1000, 60)
 	writeLimiter := middleware.NewMemoryRateLimiter(1000, 60)
