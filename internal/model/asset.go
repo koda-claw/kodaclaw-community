@@ -58,3 +58,7 @@ type AssetListResponse struct {
 	Page     int     `json:"page"`
 	PageSize int     `json:"page_size"`
 }
+
+type RejectRequest struct {
+	Reason string `json:"reason" binding:"required"`
+}

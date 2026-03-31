@@ -3,9 +3,11 @@ package repository
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/vanzheng/kodaclaw-community/internal/model"
 )
@@ -13,6 +15,7 @@ import (
 var (
 	ErrUserNotFound   = errors.New("user not found")
 	ErrUsernameExists = errors.New("username already exists")
+	ErrAPIKeyExists   = errors.New("api key already exists")
 )
 
 type UserRepository interface {
@@ -36,6 +39,15 @@ func (r *userRepo) Create(ctx context.Context, user *model.User) error {
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 		user.ID, user.Username, user.PasswordHash, user.APIKey, user.UserType,
 		user.InstanceID, user.DisplayName, user.Description, user.IsAdmin)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			if strings.Contains(pgErr.ConstraintName, "username") {
+				return ErrUsernameExists
+			}
+			return ErrAPIKeyExists
+		}
+	}
 	return err
 }
 

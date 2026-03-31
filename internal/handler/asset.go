@@ -1,11 +1,14 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -16,11 +19,15 @@ import (
 	"github.com/vanzheng/kodaclaw-community/internal/repository"
 )
 
+const maxFileSize = 50 * 1024 * 1024 // 50MB
+
+var versionRegex = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
+
 type AssetHandler struct {
-	assetRepo    repository.AssetRepository
-	versionRepo  repository.AssetVersionRepository
-	userRepo     repository.UserRepository
-	storagePath  string
+	assetRepo   repository.AssetRepository
+	versionRepo repository.AssetVersionRepository
+	userRepo    repository.UserRepository
+	storagePath string
 }
 
 func NewAssetHandler(assetRepo repository.AssetRepository, versionRepo repository.AssetVersionRepository, userRepo repository.UserRepository, storagePath string) *AssetHandler {
@@ -39,6 +46,12 @@ func (h *AssetHandler) Create(c *gin.Context) {
 		return
 	}
 
+	// Validate version format
+	if !versionRegex.MatchString(req.Version) {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Version must be in format x.y.z (e.g. 1.0.0)")
+		return
+	}
+
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
 		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "File is required")
@@ -46,11 +59,20 @@ func (h *AssetHandler) Create(c *gin.Context) {
 	}
 	defer file.Close()
 
+	// Check file size
+	if header.Size > maxFileSize {
+		middleware.RespondError(c, http.StatusRequestEntityTooLarge, "FILE_TOO_LARGE", "File size exceeds 50MB limit")
+		return
+	}
+
 	// Validate zip extension
 	if !strings.HasSuffix(strings.ToLower(header.Filename), ".zip") {
 		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Only .zip files are allowed")
 		return
 	}
+
+	// Sanitize filename to prevent path traversal
+	safeFilename := filepath.Base(header.Filename)
 
 	assetID := uuid.New()
 
@@ -62,7 +84,7 @@ func (h *AssetHandler) Create(c *gin.Context) {
 	}
 
 	// Save file
-	filePath := filepath.Join(dir, header.Filename)
+	filePath := filepath.Join(dir, safeFilename)
 	dst, err := os.Create(filePath)
 	if err != nil {
 		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to save file")
@@ -77,7 +99,11 @@ func (h *AssetHandler) Create(c *gin.Context) {
 	}
 
 	userID := c.GetString(middleware.ContextUserID)
-	uid, _ := uuid.Parse(userID)
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid user ID")
+		return
+	}
 
 	// Parse tags
 	var tags []string
@@ -86,23 +112,33 @@ func (h *AssetHandler) Create(c *gin.Context) {
 		for i := range tags {
 			tags[i] = strings.TrimSpace(tags[i])
 		}
+		// Validate tags
+		if len(tags) > 10 {
+			middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Maximum 10 tags allowed")
+			return
+		}
+		for _, tag := range tags {
+			if len(tag) > 30 {
+				middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Tag too long (max 30 chars)")
+				return
+			}
+			matched, _ := regexp.MatchString(`^[a-zA-Z0-9\-]+$`, tag)
+			if !matched {
+				middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Tag must only contain letters, numbers, and hyphens")
+				return
+			}
+		}
 	}
 
 	// Create asset record
 	asset := &model.Asset{
-		ID:           assetID,
-		Name:         req.Name,
-		Type:         req.Type,
-		Description:  req.Description,
-		AuthorID:     uid,
-		Status:       model.AssetStatusPending,
-		Tags:         tags,
-	}
-
-	if err := h.assetRepo.Create(c.Request.Context(), asset); err != nil {
-		os.RemoveAll(filepath.Join(h.storagePath, assetID.String()))
-		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create asset")
-		return
+		ID:          assetID,
+		Name:        req.Name,
+		Type:        req.Type,
+		Description: req.Description,
+		AuthorID:    uid,
+		Status:      model.AssetStatusPending,
+		Tags:        tags,
 	}
 
 	// Create version record
@@ -110,7 +146,7 @@ func (h *AssetHandler) Create(c *gin.Context) {
 	if req.Changelog != "" {
 		changelog = &req.Changelog
 	}
-	fileKey := filepath.Join(assetID.String(), req.Version, header.Filename)
+	fileKey := filepath.Join(assetID.String(), req.Version, safeFilename)
 	av := &model.AssetVersion{
 		ID:        uuid.New(),
 		AssetID:   assetID,
@@ -119,22 +155,38 @@ func (h *AssetHandler) Create(c *gin.Context) {
 		FileSize:  written,
 		Changelog: changelog,
 	}
-	if err := h.versionRepo.Create(c.Request.Context(), av); err != nil {
-		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create version")
+
+	// Create asset and version in a single transaction
+	if err := h.assetRepo.CreateWithVersion(c.Request.Context(), asset, av); err != nil {
+		os.RemoveAll(filepath.Join(h.storagePath, assetID.String()))
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create asset")
 		return
 	}
 
 	// Set current version
-	h.assetRepo.UpdateCurrentVersion(c.Request.Context(), assetID, req.Version)
+	if err := h.assetRepo.UpdateCurrentVersion(c.Request.Context(), assetID, req.Version); err != nil {
+		log.Printf("warn: failed to set current version for asset %s: %v", assetID, err)
+	}
 
 	// Fetch created asset with author name
-	created, _ := h.assetRepo.GetByID(c.Request.Context(), assetID)
+	created, err := h.assetRepo.GetByID(c.Request.Context(), assetID)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to fetch created asset")
+		return
+	}
 	middleware.RespondCreated(c, created)
 }
 
 func (h *AssetHandler) List(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
 
 	filter := repository.AssetFilter{
 		Type:     c.Query("type"),
@@ -171,7 +223,7 @@ func (h *AssetHandler) GetByID(c *gin.Context) {
 
 	asset, err := h.assetRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if err == repository.ErrAssetNotFound {
+		if errors.Is(err, repository.ErrAssetNotFound) {
 			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Asset not found")
 			return
 		}
@@ -196,6 +248,23 @@ func (h *AssetHandler) Download(c *gin.Context) {
 		return
 	}
 
+	// Check asset exists and authorization
+	asset, err := h.assetRepo.GetByID(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, repository.ErrAssetNotFound) {
+			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Asset not found")
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get asset")
+		return
+	}
+
+	userID := c.GetString(middleware.ContextUserID)
+	if asset.Status != model.AssetStatusApproved && asset.AuthorID.String() != userID {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Access denied")
+		return
+	}
+
 	version := c.Query("version")
 	var av *model.AssetVersion
 	if version != "" {
@@ -204,7 +273,7 @@ func (h *AssetHandler) Download(c *gin.Context) {
 		av, err = h.versionRepo.GetCurrent(c.Request.Context(), id)
 	}
 	if err != nil {
-		if err == repository.ErrAssetNotFound {
+		if errors.Is(err, repository.ErrAssetNotFound) {
 			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Asset version not found")
 			return
 		}
