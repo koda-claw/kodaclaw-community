@@ -202,7 +202,7 @@ func runMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 			type VARCHAR(50) NOT NULL,
 			title VARCHAR(200) NOT NULL,
 			message TEXT,
-			related_asset_id UUID REFERENCES assets(id),
+			related_asset_id UUID REFERENCES assets(id) ON DELETE SET NULL,
 			is_read BOOLEAN NOT NULL DEFAULT FALSE,
 			created_at TIMESTAMP NOT NULL DEFAULT NOW()
 		)`,

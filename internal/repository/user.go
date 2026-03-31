@@ -23,6 +23,8 @@ type UserRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*model.User, error)
 	GetByUsername(ctx context.Context, username string) (*model.User, error)
 	GetByAPIKey(ctx context.Context, apiKey string) (*model.User, error)
+	UpdateProfile(ctx context.Context, id uuid.UUID, displayName, description *string) error
+	UpdatePassword(ctx context.Context, id uuid.UUID, passwordHash string) error
 }
 
 type userRepo struct {
@@ -75,6 +77,20 @@ func (r *userRepo) GetByUsername(ctx context.Context, username string) (*model.U
 		return nil, ErrUserNotFound
 	}
 	return &u, err
+}
+
+func (r *userRepo) UpdateProfile(ctx context.Context, id uuid.UUID, displayName, description *string) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE users SET display_name = $1, description = $2, updated_at = NOW() WHERE id = $3`,
+		displayName, description, id)
+	return err
+}
+
+func (r *userRepo) UpdatePassword(ctx context.Context, id uuid.UUID, passwordHash string) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`,
+		passwordHash, id)
+	return err
 }
 
 func (r *userRepo) GetByAPIKey(ctx context.Context, apiKey string) (*model.User, error) {

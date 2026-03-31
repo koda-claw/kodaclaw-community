@@ -37,6 +37,14 @@ func Setup(
 	// Create auth checker
 	checker := middleware.NewAuthChecker(userRepo)
 
+	// Auth endpoints that require authentication
+	authWriteGroup := v1.Group("/auth")
+	authWriteGroup.Use(middleware.RateLimitMiddleware(writeLimiter, 20))
+	authWriteGroup.Use(middleware.AuthMiddleware(checker))
+	{
+		authWriteGroup.PATCH("/password", authH.ChangePassword)
+	}
+
 	// Read endpoints (GET)
 	readGroup := v1.Group("")
 	readGroup.Use(middleware.RateLimitMiddleware(readLimiter, 100))
@@ -65,6 +73,9 @@ func Setup(
 		writeGroup.POST("/assets/:id/reviews", reviewH.Create)
 		writeGroup.POST("/assets/:id/versions", assetH.UploadVersion)
 		writeGroup.PATCH("/assets/:id/versions/current", assetH.SetCurrentVersion)
+		writeGroup.PATCH("/assets/:id", assetH.Update)
+		writeGroup.DELETE("/assets/:id", assetH.Delete)
+		writeGroup.PATCH("/users/me", userH.UpdateProfile)
 		writeGroup.PATCH("/users/me/notifications/read-all", userH.MarkAllNotificationsRead)
 		writeGroup.PATCH("/users/me/notifications/:id", userH.MarkNotificationRead)
 	}

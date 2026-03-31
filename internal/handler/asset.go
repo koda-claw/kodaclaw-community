@@ -538,6 +538,105 @@ func (h *AssetHandler) SetCurrentVersion(c *gin.Context) {
 	middleware.RespondOK(c, updated)
 }
 
+func (h *AssetHandler) Update(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid asset ID")
+		return
+	}
+
+	asset, err := h.assetRepo.GetByID(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, repository.ErrAssetNotFound) {
+			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Asset not found")
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get asset")
+		return
+	}
+
+	userID := c.GetString(middleware.ContextUserID)
+	if asset.AuthorID.String() != userID {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Only the author can update this asset")
+		return
+	}
+
+	var req struct {
+		Name        string   `json:"name" binding:"required,max=200"`
+		Description string   `json:"description" binding:"required"`
+		Tags        []string `json:"tags"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		return
+	}
+
+	if len(req.Tags) > 10 {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Maximum 10 tags allowed")
+		return
+	}
+	for _, tag := range req.Tags {
+		if len(tag) > 30 {
+			middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Tag too long (max 30 chars)")
+			return
+		}
+		matched, _ := regexp.MatchString(`^[a-zA-Z0-9\-]+$`, tag)
+		if !matched {
+			middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Tag must only contain letters, numbers, and hyphens")
+			return
+		}
+	}
+
+	newStatus := asset.Status
+	if asset.Status == model.AssetStatusApproved {
+		newStatus = model.AssetStatusPending
+	}
+
+	if err := h.assetRepo.Update(c.Request.Context(), id, req.Name, req.Description, req.Tags, newStatus); err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update asset")
+		return
+	}
+
+	updated, err := h.assetRepo.GetByID(c.Request.Context(), id)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to fetch updated asset")
+		return
+	}
+
+	middleware.RespondOK(c, updated)
+}
+
+func (h *AssetHandler) Delete(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid asset ID")
+		return
+	}
+
+	asset, err := h.assetRepo.GetByID(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, repository.ErrAssetNotFound) {
+			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Asset not found")
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get asset")
+		return
+	}
+
+	userID := c.GetString(middleware.ContextUserID)
+	if asset.AuthorID.String() != userID {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Only the author can delete this asset")
+		return
+	}
+
+	if err := h.assetRepo.Delete(c.Request.Context(), id); err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to delete asset")
+		return
+	}
+
+	middleware.RespondOK(c, gin.H{"message": "Asset deleted successfully"})
+}
+
 func (h *AssetHandler) PopularTags(c *gin.Context) {
 	tags, err := h.assetRepo.PopularTags(c.Request.Context(), 20)
 	if err != nil {

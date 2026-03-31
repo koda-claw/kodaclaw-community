@@ -82,6 +82,48 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	})
 }
 
+func (h *AuthHandler) ChangePassword(c *gin.Context) {
+	userID := c.GetString(middleware.ContextUserID)
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Invalid user ID in context")
+		return
+	}
+
+	var req struct {
+		OldPassword string `json:"old_password" binding:"required"`
+		NewPassword string `json:"new_password" binding:"required,min=8,max=50"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		return
+	}
+
+	user, err := h.userRepo.GetByID(c.Request.Context(), uid)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get user")
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.OldPassword)); err != nil {
+		middleware.RespondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Old password is incorrect")
+		return
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to hash password")
+		return
+	}
+
+	if err := h.userRepo.UpdatePassword(c.Request.Context(), uid, string(hash)); err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update password")
+		return
+	}
+
+	middleware.RespondOK(c, gin.H{"message": "Password updated successfully"})
+}
+
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req model.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

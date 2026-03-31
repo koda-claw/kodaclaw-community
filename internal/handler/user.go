@@ -35,6 +35,37 @@ func NewUserHandlerWithNotifications(userRepo repository.UserRepository, assetRe
 	return &UserHandler{userRepo: userRepo, assetRepo: assetRepo, favoriteRepo: favoriteRepo, notificationRepo: notificationRepo}
 }
 
+func (h *UserHandler) UpdateProfile(c *gin.Context) {
+	userID := c.GetString(middleware.ContextUserID)
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Invalid user ID in context")
+		return
+	}
+
+	var req struct {
+		DisplayName *string `json:"display_name"`
+		Description *string `json:"description"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		return
+	}
+
+	if err := h.userRepo.UpdateProfile(c.Request.Context(), uid, req.DisplayName, req.Description); err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update profile")
+		return
+	}
+
+	user, err := h.userRepo.GetByID(c.Request.Context(), uid)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to fetch updated user")
+		return
+	}
+
+	middleware.RespondOK(c, user)
+}
+
 func (h *UserHandler) GetMe(c *gin.Context) {
 	userID := c.GetString(middleware.ContextUserID)
 	uid, err := uuid.Parse(userID)

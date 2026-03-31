@@ -24,6 +24,8 @@ type AssetRepository interface {
 	IncrementDownloadCount(ctx context.Context, assetID, userID uuid.UUID) error
 	UpdateAvgRating(ctx context.Context, assetID uuid.UUID) error
 	PopularTags(ctx context.Context, limit int) ([]TagCount, error)
+	Update(ctx context.Context, id uuid.UUID, name, description string, tags []string, status model.AssetStatus) error
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
 type TagCount struct {
@@ -233,6 +235,18 @@ func (r *assetRepo) PopularTags(ctx context.Context, limit int) ([]TagCount, err
 		return nil, err
 	}
 	return tags, nil
+}
+
+func (r *assetRepo) Update(ctx context.Context, id uuid.UUID, name, description string, tags []string, status model.AssetStatus) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE assets SET name = $1, description = $2, tags = $3, status = $4, updated_at = NOW() WHERE id = $5`,
+		name, description, tags, status, id)
+	return err
+}
+
+func (r *assetRepo) Delete(ctx context.Context, id uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, `DELETE FROM assets WHERE id = $1`, id)
+	return err
 }
 
 func (r *assetRepo) IncrementDownloadCount(ctx context.Context, assetID, userID uuid.UUID) error {
