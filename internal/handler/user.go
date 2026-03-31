@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -12,11 +13,16 @@ import (
 )
 
 type UserHandler struct {
-	userRepo repository.UserRepository
+	userRepo  repository.UserRepository
+	assetRepo repository.AssetRepository
 }
 
 func NewUserHandler(userRepo repository.UserRepository) *UserHandler {
 	return &UserHandler{userRepo: userRepo}
+}
+
+func NewUserHandlerWithAssets(userRepo repository.UserRepository, assetRepo repository.AssetRepository) *UserHandler {
+	return &UserHandler{userRepo: userRepo, assetRepo: assetRepo}
 }
 
 func (h *UserHandler) GetMe(c *gin.Context) {
@@ -64,4 +70,52 @@ func (h *UserHandler) GetByID(c *gin.Context) {
 	}
 
 	middleware.RespondOK(c, profile)
+}
+
+func (h *UserHandler) ListAssets(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid user ID")
+		return
+	}
+
+	_, err = h.userRepo.GetByID(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "User not found")
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get user")
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	assets, total, err := h.assetRepo.List(c.Request.Context(), repository.AssetFilter{
+		AuthorID: id.String(),
+		Page:     page,
+		PageSize: pageSize,
+	})
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list assets")
+		return
+	}
+
+	if assets == nil {
+		assets = []model.Asset{}
+	}
+
+	middleware.RespondOK(c, model.AssetListResponse{
+		Items:    assets,
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+	})
 }

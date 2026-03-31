@@ -49,6 +49,7 @@ func Setup(
 		readGroup.GET("/assets/:id/reviews", reviewH.List)
 		readGroup.GET("/users/me", userH.GetMe)
 		readGroup.GET("/users/:id", userH.GetByID)
+		readGroup.GET("/users/:id/assets", userH.ListAssets)
 	}
 
 	// Write endpoints (POST)

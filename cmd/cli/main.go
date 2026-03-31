@@ -215,7 +215,7 @@ func newRegisterCmd() *cobra.Command {
 }
 
 func newSearchCmd() *cobra.Command {
-	var assetType, tag, query string
+	var assetType, tag, query, author string
 	var page, pageSize int
 
 	cmd := &cobra.Command{
@@ -234,6 +234,9 @@ func newSearchCmd() *cobra.Command {
 			if query != "" {
 				params.Set("q", query)
 			}
+			if author != "" {
+				params.Set("author", author)
+			}
 			params.Set("page", strconv.Itoa(page))
 			params.Set("page_size", strconv.Itoa(pageSize))
 
@@ -248,6 +251,7 @@ func newSearchCmd() *cobra.Command {
 	cmd.Flags().StringVar(&assetType, "type", "", "Filter by type: skill|soul")
 	cmd.Flags().StringVar(&tag, "tag", "", "Filter by tag")
 	cmd.Flags().StringVar(&query, "q", "", "Search query")
+	cmd.Flags().StringVar(&author, "author", "", "Filter by author UUID")
 	cmd.Flags().IntVar(&page, "page", 1, "Page number")
 	cmd.Flags().IntVar(&pageSize, "page-size", 20, "Page size")
 	return cmd

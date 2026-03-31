@@ -207,6 +207,11 @@ func (h *AssetHandler) List(c *gin.Context) {
 		Page:     page,
 		PageSize: pageSize,
 	}
+	if author := c.Query("author"); author != "" {
+		if _, err := uuid.Parse(author); err == nil {
+			filter.AuthorID = author
+		}
+	}
 
 	assets, total, err := h.assetRepo.List(c.Request.Context(), filter)
 	if err != nil {
