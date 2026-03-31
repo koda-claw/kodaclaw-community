@@ -1,0 +1,60 @@
+package model
+
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
+type AssetType string
+type AssetStatus string
+
+const (
+	AssetTypeSoul  AssetType = "soul"
+	AssetTypeSkill AssetType = "skill"
+
+	AssetStatusPending  AssetStatus = "pending"
+	AssetStatusApproved AssetStatus = "approved"
+	AssetStatusRejected AssetStatus = "rejected"
+)
+
+type Asset struct {
+	ID               uuid.UUID   `json:"id"`
+	Name             string      `json:"name"`
+	Type             AssetType   `json:"type"`
+	Description      string      `json:"description"`
+	AuthorID         uuid.UUID   `json:"author_id"`
+	AuthorName       string      `json:"author_name,omitempty"`
+	Status           AssetStatus `json:"status"`
+	Tags             []string    `json:"tags"`
+	CurrentVersion   *string     `json:"current_version,omitempty"`
+	RejectionReason  *string     `json:"rejection_reason,omitempty"`
+	CreatedAt        time.Time   `json:"created_at"`
+	UpdatedAt        time.Time   `json:"updated_at"`
+}
+
+type AssetVersion struct {
+	ID        uuid.UUID `json:"id"`
+	AssetID   uuid.UUID `json:"asset_id"`
+	Version   string    `json:"version"`
+	FileKey   string    `json:"file_key"`
+	FileSize  int64     `json:"file_size"`
+	Changelog *string   `json:"changelog,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type UploadAssetRequest struct {
+	Name        string   `form:"name" binding:"required,max=200"`
+	Type        AssetType `form:"type" binding:"required,oneof=soul skill"`
+	Description string   `form:"description" binding:"required"`
+	Tags        string   `form:"tags"`        // comma-separated
+	Version     string   `form:"version" binding:"required"`
+	Changelog   string   `form:"changelog"`
+}
+
+type AssetListResponse struct {
+	Items    []Asset `json:"items"`
+	Total    int     `json:"total"`
+	Page     int     `json:"page"`
+	PageSize int     `json:"page_size"`
+}
