@@ -868,6 +868,106 @@ func newTagsCmd() *cobra.Command {
 	}
 }
 
+
+func newInstallCmd() *cobra.Command {
+	var workspaceDir string
+
+	cmd := &cobra.Command{
+		Use:   "install <skill-name>",
+		Short: "Install a skill from the community into your KodaClaw workspace",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			name := args[0]
+
+			// Resolve workspace directory
+			if workspaceDir == "" {
+				workspaceDir = os.Getenv("KC_WORKSPACE")
+				if workspaceDir == "" {
+					home, _ := os.UserHomeDir()
+					workspaceDir = filepath.Join(home, ".kodaclaw")
+				}
+			}
+
+			baseURL := getBaseURL()
+
+			// 1. Fetch SKILL.md from public API (no auth needed)
+			skillURL := baseURL + "/api/v1/public/skills/" + url.PathEscape(name) + "/SKILL.md"
+			resp, err := http.Get(skillURL)
+			if err != nil {
+				exitErr(fmt.Sprintf("failed to fetch skill: %v", err))
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode == 404 {
+				exitErr(fmt.Sprintf("skill '%s' not found in community", name))
+			}
+			if resp.StatusCode >= 400 {
+				exitErr(fmt.Sprintf("failed to fetch skill '%s': HTTP %d", name, resp.StatusCode))
+			}
+
+			data, err := io.ReadAll(resp.Body)
+			if err != nil {
+				exitErr(fmt.Sprintf("failed to read skill content: %v", err))
+			}
+
+			if len(data) == 0 {
+				exitErr("skill content is empty")
+			}
+
+			// 2. Write SKILL.md to workspace/skills/<name>/
+			skillDir := filepath.Join(workspaceDir, "skills", name)
+			skillFile := filepath.Join(skillDir, "SKILL.md")
+
+			if err := os.MkdirAll(skillDir, 0755); err != nil {
+				exitErr(fmt.Sprintf("failed to create skill directory: %v", err))
+			}
+
+			if err := os.WriteFile(skillFile, data, 0644); err != nil {
+				exitErr(fmt.Sprintf("failed to write SKILL.md: %v", err))
+			}
+
+			// 3. Record install (best-effort, requires auth)
+			creds, err := loadCreds()
+			if err == nil {
+				// Try to find the asset by name to get its ID
+				searchURL := baseURL + "/api/v1/public/skills?type=skill&q=" + url.QueryEscape(name)
+				sResp, sErr := http.Get(searchURL)
+				if sErr == nil {
+					defer sResp.Body.Close()
+					var result struct {
+						Items []struct {
+							ID   string `json:"id"`
+							Name string `json:"name"`
+						} `json:"items"`
+					}
+					if json.NewDecoder(sResp.Body).Decode(&result) == nil {
+						for _, item := range result.Items {
+							if item.Name == name && item.ID != "" {
+								// POST install (auth required, best-effort)
+								installURL := baseURL + "/api/v1/assets/" + item.ID + "/install"
+								req, _ := http.NewRequest("POST", installURL, nil)
+								req.Header.Set("Authorization", "Bearer "+creds.APIKey)
+								http.DefaultClient.Do(req) // fire and forget
+								break
+							}
+						}
+					}
+				}
+			}
+
+			printOut(map[string]interface{}{
+				"status":  "installed",
+				"name":    name,
+				"path":    skillFile,
+				"bytes":   len(data),
+				"message": "Skill installed. Restart KodaClaw or activate the skill to use it.",
+			})
+		},
+	}
+	cmd.Flags().StringVar(&workspaceDir, "workspace", "", "KodaClaw workspace directory (default: $KC_WORKSPACE or ~/.kodaclaw)")
+	return cmd
+}
+
 func newAdminCmd() *cobra.Command {
 	adminCmd := &cobra.Command{
 		Use:   "admin",
@@ -1022,6 +1122,7 @@ func main() {
 		newNotificationsCmd(),
 		newNotificationReadCmd(),
 		newNotificationReadAllCmd(),
+		newInstallCmd(),
 		newAdminCmd(),
 	)
 
