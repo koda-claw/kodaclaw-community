@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&display=swap');
+
 /* ===== Reset & Base ===== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -784,4 +786,432 @@ a:hover { color: var(--accent-hover); }
 .inline-icon svg {
   width: 100%;
   height: 100%;
+}
+
+/* ===================================================
+   Landing Page v2 — Terminal Bloom
+   All classes prefixed lp-* to avoid collision
+   =================================================== */
+
+/* ── Keyframes ── */
+@keyframes lp-orb-drift-a {
+  0%,100% { transform: translate(0,0) scale(1); }
+  30%     { transform: translate(55px,-40px) scale(1.06); }
+  65%     { transform: translate(-35px, 50px) scale(0.94); }
+}
+@keyframes lp-orb-drift-b {
+  0%,100% { transform: translate(0,0) scale(1); }
+  45%     { transform: translate(-60px,-50px) scale(1.1); }
+}
+@keyframes lp-orb-drift-c {
+  0%,100% { transform: translate(0,0); }
+  38%     { transform: translate(35px,30px); }
+  75%     { transform: translate(-20px,-25px); }
+}
+@keyframes lp-dot-pulse {
+  0%,100% { opacity:1; box-shadow:0 0 6px var(--success); }
+  50%     { opacity:.4; box-shadow:0 0 14px var(--success),0 0 28px var(--success); }
+}
+@keyframes lp-stat-in {
+  from { opacity:0; transform:translateY(14px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+@keyframes lp-card-in {
+  from { opacity:0; transform:translateY(20px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+/* ── Hero wrapper — bleeds to #app edges ── */
+.lp-hero {
+  position: relative;
+  overflow: hidden;
+  margin: -2rem -1.5rem 4.5rem;
+  padding: 6rem 2rem 5.5rem;
+  background: var(--bg);
+  text-align: center;
+}
+
+/* Gradient border at hero bottom */
+.lp-hero::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 12%; right: 12%;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent,
+    rgba(99,102,241,.5) 25%,
+    rgba(168,85,247,.7) 50%,
+    rgba(99,102,241,.5) 75%,
+    transparent
+  );
+}
+
+/* Subtle dot-grid texture */
+.lp-bg-grid {
+  position: absolute;
+  inset: 0; z-index: 0;
+  background-image:
+    radial-gradient(circle, rgba(99,102,241,.18) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: radial-gradient(ellipse 85% 70% at 50% 0%, black 20%, transparent 100%);
+  pointer-events: none;
+}
+
+/* Scanline overlay */
+.lp-bg-scanlines {
+  position: absolute;
+  inset: 0; z-index: 1;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0,0,0,.06) 3px,
+    rgba(0,0,0,.06) 4px
+  );
+  pointer-events: none;
+}
+
+/* Glowing orbs */
+.lp-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  will-change: transform;
+}
+.lp-orb-1 {
+  width: 560px; height: 560px;
+  background: radial-gradient(circle, rgba(99,102,241,.22), transparent 70%);
+  top: -180px; left: -120px;
+  animation: lp-orb-drift-a 18s ease-in-out infinite;
+}
+.lp-orb-2 {
+  width: 440px; height: 440px;
+  background: radial-gradient(circle, rgba(168,85,247,.18), transparent 70%);
+  top: -60px; right: -80px;
+  animation: lp-orb-drift-b 24s ease-in-out infinite;
+}
+.lp-orb-3 {
+  width: 320px; height: 320px;
+  background: radial-gradient(circle, rgba(6,182,212,.15), transparent 70%);
+  bottom: 60px; left: 35%;
+  animation: lp-orb-drift-c 16s ease-in-out infinite 2s;
+}
+
+/* Content inside hero */
+.lp-hero-inner {
+  position: relative;
+  z-index: 2;
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+/* Eyebrow pill */
+.lp-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: .7rem;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: .3rem .9rem;
+  border: 1px solid rgba(99,102,241,.3);
+  border-radius: 999px;
+  background: rgba(99,102,241,.07);
+  backdrop-filter: blur(4px);
+  margin-bottom: 1.75rem;
+}
+.lp-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 6px var(--success);
+  flex-shrink: 0;
+  animation: lp-dot-pulse 2.2s ease-in-out infinite;
+}
+
+/* Main title */
+.lp-title {
+  font-family: 'Syne', system-ui, sans-serif;
+  font-size: clamp(2.1rem, 5.5vw, 3.75rem);
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: -.035em;
+  color: var(--text);
+  margin-bottom: 1.25rem;
+}
+.lp-title-em {
+  font-style: normal;
+  background: linear-gradient(130deg, var(--accent) 0%, var(--soul) 52%, var(--skill) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Subtitle */
+.lp-subtitle {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: .875rem;
+  color: var(--text-muted);
+  line-height: 1.85;
+  letter-spacing: .02em;
+  margin-bottom: 2.5rem;
+}
+
+/* Stats row */
+.lp-stats-row {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  margin-bottom: 2.75rem;
+  flex-wrap: wrap;
+  gap: 0;
+}
+.lp-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: .25rem 2.25rem;
+  border-right: 1px solid var(--border);
+  animation: lp-stat-in .5s ease both;
+}
+.lp-stat:last-child { border-right: none; }
+.lp-stat:nth-child(2) { animation-delay: .1s; }
+.lp-stat:nth-child(3) { animation-delay: .2s; }
+.lp-stat-num {
+  font-family: 'Syne', system-ui, sans-serif;
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1;
+  letter-spacing: -.045em;
+  display: block;
+}
+.lp-stat-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: .63rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  margin-top: .3rem;
+  display: block;
+}
+
+/* Hero CTAs */
+.lp-hero-ctas {
+  display: flex;
+  gap: .875rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.lp-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .8rem 1.75rem;
+  background: var(--accent);
+  color: #fff;
+  border: 1px solid rgba(99,102,241,.6);
+  border-radius: var(--radius);
+  font-size: .95rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all .2s;
+  box-shadow: 0 0 24px rgba(99,102,241,.35), inset 0 1px 0 rgba(255,255,255,.1);
+}
+.lp-btn-primary:hover {
+  background: var(--accent-hover);
+  color: #fff;
+  box-shadow: 0 0 40px rgba(99,102,241,.6), inset 0 1px 0 rgba(255,255,255,.15);
+  transform: translateY(-2px);
+}
+.lp-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .8rem 1.75rem;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: .95rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all .2s;
+}
+.lp-btn-outline:hover {
+  border-color: var(--accent);
+  color: var(--text);
+  background: rgba(99,102,241,.06);
+  transform: translateY(-2px);
+}
+
+/* ── Landing sections ── */
+.lp-section { margin-bottom: 5rem; }
+
+.lp-section-hd {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+.lp-kicker {
+  display: inline-block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: .65rem;
+  font-weight: 500;
+  letter-spacing: .2em;
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-bottom: .65rem;
+}
+.lp-section-h2 {
+  font-family: 'Syne', system-ui, sans-serif;
+  font-size: clamp(1.5rem, 3.5vw, 2.2rem);
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -.025em;
+}
+
+/* ── How it works ── */
+.lp-steps {
+  display: grid;
+  grid-template-columns: 1fr 48px 1fr;
+  gap: 1.25rem;
+  align-items: start;
+  max-width: 900px;
+  margin: 0 auto;
+}
+.lp-step-connector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 2.75rem;
+  color: var(--text-muted);
+  opacity: .35;
+}
+.lp-step-connector svg { width: 22px; height: 22px; }
+
+.lp-step {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 2rem;
+  position: relative;
+  transition: border-color .3s, box-shadow .3s, transform .3s;
+  animation: lp-card-in .5s ease both;
+}
+.lp-step:hover {
+  border-color: rgba(99,102,241,.45);
+  box-shadow: 0 14px 52px rgba(99,102,241,.1);
+  transform: translateY(-4px);
+}
+.lp-step:nth-child(3) { animation-delay: .12s; }
+
+.lp-step-badge {
+  position: absolute;
+  top: 1.25rem; right: 1.25rem;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: .6rem;
+  font-weight: 500;
+  letter-spacing: .05em;
+  padding: .2rem .45rem;
+  border-radius: 5px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  opacity: .7;
+}
+.lp-step-icon {
+  width: 52px; height: 52px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+}
+.lp-step-icon svg { width: 24px; height: 24px; }
+.lp-step-icon-ai {
+  background: rgba(99,102,241,.1);
+  border: 1px solid rgba(99,102,241,.25);
+  color: var(--accent);
+}
+.lp-step-icon-human {
+  background: rgba(168,85,247,.1);
+  border: 1px solid rgba(168,85,247,.25);
+  color: var(--soul);
+}
+.lp-step h3 {
+  font-family: 'Syne', system-ui, sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: .65rem;
+  letter-spacing: -.01em;
+}
+.lp-step p {
+  font-size: .875rem;
+  color: var(--text-muted);
+  line-height: 1.65;
+  margin-bottom: .75rem;
+}
+.lp-step p:last-child { margin-bottom: 0; }
+.lp-step .cmd-box {
+  font-size: .76rem;
+  padding: .65rem .875rem;
+  margin: .75rem 0;
+}
+.lp-hiw-note {
+  font-size: .75rem !important;
+  color: var(--text-muted) !important;
+  opacity: .6;
+  margin-top: .5rem !important;
+  margin-bottom: 0 !important;
+  line-height: 1.5 !important;
+}
+
+/* ── Asset columns ── */
+.lp-assets-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2.5rem;
+}
+.lp-col-header {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  font-family: 'Syne', system-ui, sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  color: var(--text);
+  margin-bottom: 1.25rem;
+  padding-bottom: .75rem;
+  border-bottom: 1px solid var(--border);
+}
+.lp-col-icon { width: 1.1em; height: 1.1em; flex-shrink: 0; }
+.lp-icon-hot { color: #fb923c; }
+.lp-icon-new { color: var(--skill); }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .lp-hero {
+    margin: -1.25rem -1rem 3.5rem;
+    padding: 4rem 1.25rem 3.5rem;
+  }
+  .lp-steps {
+    grid-template-columns: 1fr;
+  }
+  .lp-step-connector { display: none; }
+  .lp-assets-grid { grid-template-columns: 1fr; gap: 2rem; }
+  .lp-stat { padding: .25rem 1.5rem; }
+  .lp-stat-num { font-size: 1.85rem; }
+}
+@media (max-width: 480px) {
+  .lp-title { font-size: 2.1rem; }
+  .lp-stat { padding: .25rem 1rem; }
+  .lp-stat-num { font-size: 1.6rem; }
+  .lp-btn-primary, .lp-btn-outline { padding: .7rem 1.25rem; font-size: .875rem; }
 }

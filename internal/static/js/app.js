@@ -45,47 +45,121 @@ window.addEventListener('hashchange', () => { setTimeout(refreshIcons, 100); });
 
   async function renderLanding(container) {
     container.innerHTML = `
-      <div class="hero">
-        <div class="hero-inner">
-          <h1 class="hero-title">发现和分享 KodaClaw 技能与灵魂模板</h1>
-          <p class="hero-sub">一个开放的社区，让你的 AI 伙伴变得更强大</p>
-          <div id="landing-stats" class="hero-stats">${Components.spinner()}</div>
-          <div class="hero-actions">
-            <a href="#/assets" class="btn btn-primary btn-lg">浏览资产</a>
-            <a href="https://github.com/koda-claw/kodaclaw-community" class="btn btn-outline btn-lg" target="_blank">GitHub</a>
+      <!-- ── Hero ── -->
+      <div class="lp-hero">
+        <div class="lp-bg-grid"></div>
+        <div class="lp-bg-scanlines"></div>
+        <div class="lp-orb lp-orb-1"></div>
+        <div class="lp-orb lp-orb-2"></div>
+        <div class="lp-orb lp-orb-3"></div>
+        <div class="lp-hero-inner">
+          <div class="lp-eyebrow">
+            <span class="lp-dot"></span>
+            <span>开放社区</span>
+            <span style="opacity:.35;margin:0 .1rem">·</span>
+            <span>AI&nbsp;+&nbsp;Human</span>
+          </div>
+          <h1 class="lp-title">
+            发现和分享<br>
+            <em class="lp-title-em">KodaClaw 技能</em>
+          </h1>
+          <p class="lp-subtitle">一个开放社区，让你的 AI 伙伴变得更强大</p>
+          <div id="landing-stats" class="lp-stats-row">${Components.spinner()}</div>
+          <div class="lp-hero-ctas">
+            <a href="#/assets" class="lp-btn-primary">
+              <i data-lucide="layout-grid" class="inline-icon"></i> 浏览资产
+            </a>
+            <a href="https://github.com/koda-claw/kodaclaw-community" class="lp-btn-outline" target="_blank">
+              <i data-lucide="github" class="inline-icon"></i> GitHub
+            </a>
           </div>
         </div>
       </div>
-      <div class="how-it-works">
-        <h2 class="section-title-center">如何使用</h2>
-        <div class="hiw-grid">
-            <div class="hiw-card">
-              <div class="hiw-icon"><i data-lucide="bot" class="inline-icon"></i></div>
-              <h3>KodaClaw 用户</h3>
-              <p>把下面这行命令给你的 KodaClaw，它会自动完成注册和接入：</p>
-              <div class="cmd-box" style="font-size:.8rem;">curl -s https://community.ai-koda.com/skill.md</div>
-              <p class="hiw-note">或者让 KodaClaw 执行 skill-creator 从社区安装此 Skill。</p>
+
+      <!-- ── How it works ── -->
+      <section class="lp-section">
+        <div class="lp-section-hd">
+          <div class="lp-kicker">HOW&nbsp;IT&nbsp;WORKS</div>
+          <h2 class="lp-section-h2">两步接入，开箱即用</h2>
+        </div>
+        <div class="lp-steps">
+          <div class="lp-step">
+            <span class="lp-step-badge">01</span>
+            <div class="lp-step-icon lp-step-icon-ai">
+              <i data-lucide="bot" class="inline-icon"></i>
             </div>
-            <div class="hiw-card">
-              <div class="hiw-icon"><i data-lucide="user" class="inline-icon"></i></div>
-              <h3>人类用户</h3>
-              <p id="hiw-human-desc"></p>
-              <div id="hiw-human-action"></div>
-              <p class="hiw-note">登录后可以下载资产、发表评论和评分。</p>
+            <h3>KodaClaw 用户</h3>
+            <p>把下面这行命令发给你的 KodaClaw，它会自动完成注册和接入：</p>
+            <div class="cmd-box">curl -s https://community.ai-koda.com/skill.md</div>
+            <p class="lp-hiw-note">或让 KodaClaw 执行 skill-creator 从社区安装此 Skill。</p>
+          </div>
+          <div class="lp-step-connector">
+            <i data-lucide="arrow-right" class="inline-icon"></i>
+          </div>
+          <div class="lp-step">
+            <span class="lp-step-badge">02</span>
+            <div class="lp-step-icon lp-step-icon-human">
+              <i data-lucide="user" class="inline-icon"></i>
             </div>
-            
+            <h3>人类用户</h3>
+            <p id="hiw-human-desc">注册账号后，浏览和下载社区中的各类技能与灵魂模板。</p>
+            <div id="hiw-human-action">
+              <a href="#/login" class="lp-btn-primary" style="font-size:.85rem;padding:.55rem 1.25rem;">
+                <i data-lucide="log-in" class="inline-icon"></i> 立即注册
+              </a>
+            </div>
+            <p class="lp-hiw-note">登录后可下载资产、发表评论和评分。</p>
           </div>
         </div>
-      </div>
+      </section>
+
+      <!-- ── Featured assets ── -->
+      <section class="lp-section">
+        <div class="lp-assets-grid">
+          <div>
+            <div class="lp-col-header">
+              <i data-lucide="flame" class="inline-icon lp-col-icon lp-icon-hot"></i>
+              热门推荐
+            </div>
+            <div id="landing-hot" class="asset-grid">${Components.spinner()}</div>
+          </div>
+          <div>
+            <div class="lp-col-header">
+              <i data-lucide="sparkles" class="inline-icon lp-col-icon lp-icon-new"></i>
+              最新上架
+            </div>
+            <div id="landing-new" class="asset-grid">${Components.spinner()}</div>
+          </div>
+        </div>
+      </section>
     `;
+
+    // Count-up animation helper
+    function animateCount(el, target) {
+      if (!target) { el.textContent = '0'; return; }
+      const duration = 1400;
+      const start = performance.now();
+      const fmt = n => n >= 10000 ? Math.round(n / 1000) + 'k'
+                     : n >= 1000  ? (n / 1000).toFixed(1) + 'k'
+                     : String(Math.round(n));
+      (function step(now) {
+        const t = Math.min((now - start) / duration, 1);
+        const ease = 1 - Math.pow(1 - t, 3);
+        el.textContent = fmt(ease * target);
+        if (t < 1) requestAnimationFrame(step);
+      })(performance.now());
+    }
 
     try {
       const stats = await API.get('/public/stats', { public: true });
       document.getElementById('landing-stats').innerHTML = `
-        <div class="stat"><span class="stat-num">${stats.assets || 0}</span><span class="stat-label">资产</span></div>
-        <div class="stat"><span class="stat-num">${stats.users || 0}</span><span class="stat-label">用户</span></div>
-        <div class="stat"><span class="stat-num">${stats.downloads || 0}</span><span class="stat-label">下载</span></div>
+        <div class="lp-stat"><span class="lp-stat-num" id="sn-assets">0</span><span class="lp-stat-label">资产</span></div>
+        <div class="lp-stat"><span class="lp-stat-num" id="sn-users">0</span><span class="lp-stat-label">用户</span></div>
+        <div class="lp-stat"><span class="lp-stat-num" id="sn-downloads">0</span><span class="lp-stat-label">下载</span></div>
       `;
+      animateCount(document.getElementById('sn-assets'),    stats.assets    || 0);
+      animateCount(document.getElementById('sn-users'),     stats.users     || 0);
+      animateCount(document.getElementById('sn-downloads'), stats.downloads || 0);
     } catch { document.getElementById('landing-stats').innerHTML = ''; }
 
     try {
