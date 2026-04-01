@@ -16,8 +16,7 @@
           <a href="#/">首页</a>
           <a href="#/assets">资产市场</a>
           ${loggedIn
-            ? `<a href="#/upload">发布资产</a>
-               <a href="#/me">个中心</a>
+            ? `<a href="#/me">个人中心</a>
                <span class="nav-user">@${Components.escHtml(user?.username || '')}</span>
                <button id="btn-logout" class="btn btn-sm btn-outline">退出</button>`
             : `<a href="#/login" class="btn btn-sm btn-primary">登录 / 注册</a>`}
@@ -74,13 +73,7 @@
               <div id="hiw-human-action"></div>
               <p class="hiw-note">登录后可以下载资产、发表评论和评分。</p>
             </div>
-            <div class="hiw-card">
-              <div class="hiw-icon">&#x1F680;</div>
-              <h3>发布者</h3>
-              <p>有自己写的 Skill 或 SOUL 模板？打包成 ZIP 上传到社区：</p>
-              <a href="#/upload" class="btn btn-outline" style="margin-top:8px;">发布资产</a>
-              <p class="hiw-note">支持 Skill（含 SKILL.md）和 SOUL（含 SOUL.md）两种类型。</p>
-            </div>
+            
           </div>
         </div>
       </div>
