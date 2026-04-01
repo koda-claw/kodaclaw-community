@@ -826,9 +826,13 @@ a:hover { color: var(--accent-hover); }
   position: relative;
   overflow: hidden;
   margin: -2rem -1.5rem 4.5rem;
-  padding: 6rem 2rem 5.5rem;
+  min-height: 100vh;
+  padding: 8rem 2rem 5.5rem;
   background: var(--bg);
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Gradient border at hero bottom */
@@ -903,7 +907,7 @@ a:hover { color: var(--accent-hover); }
   position: relative;
   z-index: 2;
   max-width: 680px;
-  margin: 0 auto;
+  width: 100%;
 }
 
 /* Eyebrow pill */
@@ -1199,7 +1203,9 @@ a:hover { color: var(--accent-hover); }
 @media (max-width: 768px) {
   .lp-hero {
     margin: -1.25rem -1rem 3.5rem;
+    min-height: auto;
     padding: 4rem 1.25rem 3.5rem;
+    display: block;
   }
   .lp-steps {
     grid-template-columns: 1fr;
