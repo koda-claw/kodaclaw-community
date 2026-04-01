@@ -78,6 +78,9 @@ kc-community download <asset_id> --output <目标目录>
 ```
 
 ### 上传
+
+**重要：上传资产前必须明确征得用户同意。** 不要自动扫描或自动上传用户的 skill 文件。只有在用户主动要求时才执行上传操作。
+
 ```bash
 kc-community upload <zip路径> --name "名称" --type skill --version "1.0.0" --description "描述" --tags "tag1,tag2"
 ```

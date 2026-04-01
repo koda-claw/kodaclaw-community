@@ -626,3 +626,60 @@ a:hover { color: var(--accent-hover); }
 @media (max-width: 768px) {
   .hiw-grid { grid-template-columns: 1fr; }
 }
+
+
+/* Modal */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 1000;
+  justify-content: center;
+  align-items: center;
+}
+.modal-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  color: var(--text);
+}
+.modal-box p { margin-bottom: 20px; }
+.modal-actions { display: flex; gap: 12px; justify-content: flex-end; }
+
+/* Button danger */
+.btn-danger { background: #e53e3e; color: #fff; border: none; }
+.btn-danger:hover { background: #c53030; }
+
+/* Status badges */
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.status-pending { background: #fef3c7; color: #92400e; }
+.status-approved { background: #d1fae5; color: #065f46; }
+.status-rejected { background: #fee2e2; color: #991b1b; }
+
+/* Reject reason */
+.reject-reason {
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+/* Card actions */
+.card-actions {
+  padding: 8px 16px;
+  display: flex;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+}

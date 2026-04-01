@@ -189,7 +189,15 @@ func (h *UserHandler) ListAssets(c *gin.Context) {
 	if status != "" {
 		filter.Status = status
 	} else {
-		filter.Status = "approved" // default public view
+		// Check if the requesting user is viewing their own assets
+		requestUserID := c.GetString(middleware.ContextUserID)
+		if requestUserID == id.String() {
+			// Own assets: show all statuses
+			filter.ShowAll = true
+		} else {
+			// Public view: only approved
+			filter.Status = "approved"
+		}
 	}
 
 	assets, total, err := h.assetRepo.List(c.Request.Context(), filter)

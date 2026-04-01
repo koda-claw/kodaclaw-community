@@ -99,24 +99,129 @@ const UserPage = (() => {
     }
   }
 
+  let myAssetsStatus = '';
+
   async function renderMyAssets(el) {
     try {
       const me = await API.get('/users/me');
       const u = me.user || me;
-      const data = await API.get('/users/' + u.id + '/assets?page=1&page_size=50&status=' + encodeURIComponent(status));
-      const assets = data.assets || data.data || data || [];
-      if (!assets.length) {
-        el.innerHTML = Components.emptyState('你还没有发布任何资产');
-        return;
-      }
-      el.innerHTML = `<div class="asset-grid">${assets.map(Components.assetCard).join('')}</div>`;
-      el.querySelectorAll('.asset-card').forEach(card => {
-        card.addEventListener('click', () => { window.location.hash = '#/asset/' + card.dataset.id; });
+      let url = '/users/' + u.id + '/assets?page=1&page_size=50';
+      if (myAssetsStatus) url += '&status=' + encodeURIComponent(myAssetsStatus);
+      const data = await API.get(url);
+      const assets = data.assets || data.data || data.items || data || [];
+
+      const tabs = [
+        { key: '', label: '全部' },
+        { key: 'approved', label: '已通过' },
+        { key: 'pending', label: '待审核' },
+        { key: 'rejected', label: '已拒绝' }
+      ];
+
+      let html = '<div class="status-tabs">';
+      tabs.forEach(t => {
+        const cls = myAssetsStatus === t.key ? 'tab-btn active' : 'tab-btn';
+        html += `<button class="${cls}" data-status="${t.key}">${t.label}</button>`;
       });
+      html += '</div>';
+
+      if (!assets.length) {
+        html += Components.emptyState('你还没有发布任何资产');
+      } else {
+        html += '<div class="asset-grid">';
+        assets.forEach(a => {
+          const tags = (a.tags || []).map(t => `<span class="tag">${Components.escHtml(t)}</span>`).join('');
+          const typeLabel = a.type === 'soul' ? 'SOUL' : 'SKILL';
+          const typeClass = a.type === 'soul' ? 'badge-soul' : 'badge-skill';
+          let statusBadge = '';
+          if (a.status === 'pending') statusBadge = '<span class="status-badge status-pending">待审核</span>';
+          else if (a.status === 'rejected') statusBadge = '<span class="status-badge status-rejected">已拒绝</span>';
+          else if (a.status === 'approved') statusBadge = '<span class="status-badge status-approved">已通过</span>';
+
+          let rejectInfo = '';
+          if (a.status === 'rejected' && (a.rejection_reason || a.reject_reason)) {
+            rejectInfo = `<div class="reject-reason">拒绝原因：${Components.escHtml(a.rejection_reason || a.reject_reason)}</div>`;
+          }
+
+          html += `
+            <div class="asset-card" data-id="${a.id}" data-name="${Components.escHtml(a.name)}">
+              <div class="card-header">
+                <span class="badge ${typeClass}">${typeLabel}</span>
+                ${statusBadge}
+              </div>
+              <h3 class="card-title">${Components.escHtml(a.name)}</h3>
+              <p class="card-desc">${Components.escHtml(a.description || '')}</p>
+              ${rejectInfo}
+              <div class="card-footer">
+                <span class="card-author">${Components.escHtml(a.author_name || '')}</span>
+                <span class="card-dl">&#8595; ${a.install_count || a.download_count || 0}</span>
+              </div>
+              <div class="card-tags">${tags}</div>
+              <div class="card-actions">
+                <button class="btn btn-sm btn-danger btn-delete-asset" data-id="${a.id}" data-name="${Components.escHtml(a.name)}">删除</button>
+              </div>
+            </div>`;
+        });
+        html += '</div>';
+      }
+
+      html += `<div class="modal-overlay" id="delete-modal" style="display:none">
+        <div class="modal-box">
+          <p id="delete-modal-msg">确定要删除此资产吗？此操作不可撤销。</p>
+          <div class="modal-actions">
+            <button class="btn btn-danger" id="btn-confirm-delete">确认删除</button>
+            <button class="btn btn-outline" id="btn-cancel-delete">取消</button>
+          </div>
+        </div>
+      </div>`;
+
+      el.innerHTML = html;
+
+      el.querySelectorAll('.status-tabs .tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          myAssetsStatus = btn.dataset.status;
+          renderMyAssets(el);
+        });
+      });
+
+      let pendingDeleteId = null;
+      el.querySelectorAll('.btn-delete-asset').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          pendingDeleteId = btn.dataset.id;
+          document.getElementById('delete-modal-msg').textContent = '确定要删除资产 "' + btn.dataset.name + '" 吗？此操作不可撤销。';
+          document.getElementById('delete-modal').style.display = 'flex';
+        });
+      });
+
+      document.getElementById('btn-cancel-delete').addEventListener('click', () => {
+        document.getElementById('delete-modal').style.display = 'none';
+        pendingDeleteId = null;
+      });
+
+      document.getElementById('btn-confirm-delete').addEventListener('click', async () => {
+        if (!pendingDeleteId) return;
+        try {
+          await API.delete('/assets/' + pendingDeleteId);
+          document.getElementById('delete-modal').style.display = 'none';
+          pendingDeleteId = null;
+          renderMyAssets(el);
+        } catch (err) {
+          alert('删除失败: ' + (err.message || err));
+        }
+      });
+
+      el.querySelectorAll('.asset-card').forEach(card => {
+        card.addEventListener('click', (e) => {
+          if (e.target.closest('.card-actions')) return;
+          window.location.hash = '#/asset/' + card.dataset.id;
+        });
+      });
+
     } catch (err) {
       el.innerHTML = Components.errorBox(err.message);
     }
   }
+
 
   async function renderFavorites(el) {
     try {

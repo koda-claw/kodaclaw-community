@@ -41,6 +41,7 @@ type AssetFilter struct {
 	Tag      string
 	Query    string
 	Status   string // empty = public (approved only), set value = admin filter by specific status
+	ShowAll  bool   // if true, don't filter by status (for own assets view)
 	AuthorID string // filter by author
 	Sort     string // "downloads", "created_at", "rating" (default: "created_at")
 	Page     int
@@ -121,7 +122,7 @@ func (r *assetRepo) List(ctx context.Context, filter AssetFilter) ([]model.Asset
 		where = append(where, fmt.Sprintf("a.status = $%d", argIdx))
 		args = append(args, filter.Status)
 		argIdx++
-	} else {
+	} else if !filter.ShowAll {
 		where = append(where, "a.status = 'approved'")
 	}
 
