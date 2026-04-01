@@ -159,8 +159,11 @@ func (r *assetRepo) List(ctx context.Context, filter AssetFilter) ([]model.Asset
 	whereClause := strings.Join(where, " AND ")
 
 	var total int
-	countSQL := fmt.Sprintf("SELECT COUNT(*) FROM assets a WHERE %s", whereClause)
-	if err := r.pool.QueryRow(ctx, countSQL, args...).Scan(&total); err != nil {
+	countQuery := "SELECT COUNT(*) FROM assets a"
+	if whereClause != "" {
+		countQuery += " WHERE " + whereClause
+	}
+	if err := r.pool.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
@@ -181,8 +184,13 @@ func (r *assetRepo) List(ctx context.Context, filter AssetFilter) ([]model.Asset
 
 	querySQL := fmt.Sprintf(
 		`SELECT a.id, a.name, a.type, a.description, a.author_id, u.username, a.status, a.tags, a.current_version, a.rejection_reason, a.download_count, a.avg_rating, a.install_count, a.asset_readme, a.asset_skill_content, a.created_at, a.updated_at
-		 FROM assets a JOIN users u ON a.author_id = u.id WHERE %s ORDER BY %s LIMIT $%d OFFSET $%d`,
-		whereClause, orderBy, argIdx, argIdx+1)
+		 FROM assets a JOIN users u ON a.author_id = u.id%s ORDER BY %s LIMIT $%d OFFSET $%d`,
+		func() string {
+			if whereClause != "" {
+				return " WHERE " + whereClause
+			}
+			return ""
+		}(), orderBy, argIdx, argIdx+1)
 	args = append(args, filter.PageSize, offset)
 
 	rows, err := r.pool.Query(ctx, querySQL, args...)
