@@ -693,7 +693,7 @@ a:hover { color: var(--accent-hover); }
 .dim-row .star-input { display: flex; gap: 0.15rem; }
 
 /* ── Dashboard ──────────────────────────────────────── */
-.dashboard-page { max-width: 1200px; margin: 0 auto; padding: 2rem 1rem; }
+.dashboard-page { max-width: 1200px; margin: 0 auto; }
 .dashboard-page .page-header { margin-bottom: 2rem; }
 
 .stats-grid {

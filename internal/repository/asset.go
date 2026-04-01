@@ -30,6 +30,7 @@ type AssetRepository interface {
 	UpdateReadme(ctx context.Context, id uuid.UUID, readme, skillContent *string) error
 	GetByName(ctx context.Context, name string) (*model.Asset, error)
 	CountByDay(ctx context.Context, days int) ([]DayCount, error)
+	CountDownloadsByDay(ctx context.Context, days int) ([]DayCount, error)
 }
 
 type TagCount struct {
@@ -323,7 +324,7 @@ func (r *assetRepo) CountByDay(ctx context.Context, days int) ([]DayCount, error
 	rows, err := r.pool.Query(ctx,
 		`SELECT TO_CHAR(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS date, COUNT(*) AS count
 		 FROM assets
-		 WHERE created_at >= NOW() - ($1 || ' days')::INTERVAL
+		 WHERE created_at >= NOW() - $1 * interval '1 day'
 		 GROUP BY date
 		 ORDER BY date`,
 		days)
@@ -342,3 +343,28 @@ func (r *assetRepo) CountByDay(ctx context.Context, days int) ([]DayCount, error
 	}
 	return result, rows.Err()
 }
+
+func (r *assetRepo) CountDownloadsByDay(ctx context.Context, days int) ([]DayCount, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT TO_CHAR(downloaded_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS date, COUNT(*) AS count
+		 FROM asset_downloads
+		 WHERE downloaded_at >= NOW() - $1 * interval '1 day'
+		 GROUP BY date
+		 ORDER BY date`,
+		days)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []DayCount
+	for rows.Next() {
+		var dc DayCount
+		if err := rows.Scan(&dc.Date, &dc.Count); err != nil {
+			return nil, err
+		}
+		result = append(result, dc)
+	}
+	return result, rows.Err()
+}
+

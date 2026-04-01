@@ -257,7 +257,7 @@ func (r *userRepo) CountByDay(ctx context.Context, days int) ([]DayCount, error)
 	rows, err := r.pool.Query(ctx,
 		`SELECT TO_CHAR(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS date, COUNT(*) AS count
 		 FROM users
-		 WHERE created_at >= NOW() - ($1 || ' days')::INTERVAL
+		 WHERE created_at >= NOW() - $1 * interval '1 day'
 		 GROUP BY date
 		 ORDER BY date`,
 		days)

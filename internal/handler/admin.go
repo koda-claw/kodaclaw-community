@@ -593,6 +593,20 @@ func (h *AdminHandler) DashboardTrends(c *gin.Context) {
 		}
 	}
 
+	// Query downloads per day
+	downloadRows, err := h.assetRepo.CountDownloadsByDay(ctx, days)
+	if err == nil {
+		dateIndex := make(map[string]int, days)
+		for i, r := range result {
+			dateIndex[r.Date] = i
+		}
+		for _, row := range downloadRows {
+			if idx, ok := dateIndex[row.Date]; ok {
+				result[idx].Downloads = row.Count
+			}
+		}
+	}
+
 	middleware.RespondOK(c, gin.H{
 		"days": days,
 		"data": result,

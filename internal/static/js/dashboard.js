@@ -128,11 +128,12 @@ const DashboardPage = (() => {
     const dates = items.map(d => d.date);
     const newAssets = items.map(d => d.new_assets);
     const newUsers = items.map(d => d.new_users);
+    const downloads = items.map(d => d.downloads);
 
     chartInstance.setOption({
       backgroundColor: 'transparent',
       tooltip: { trigger: 'axis' },
-      legend: { data: ['新增资产', '新增用户'], textStyle: { color: '#8b949e' } },
+      legend: { data: ['新增资产', '新增用户', '下载量'], textStyle: { color: '#8b949e' } },
       grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
       xAxis: {
         type: 'category',
@@ -163,6 +164,14 @@ const DashboardPage = (() => {
           data: newUsers,
           itemStyle: { color: '#3fb950' },
           areaStyle: { color: 'rgba(63,185,80,0.1)' },
+        },
+        {
+          name: '下载量',
+          type: 'line',
+          smooth: true,
+          data: downloads,
+          itemStyle: { color: '#f0883e' },
+          areaStyle: { color: 'rgba(240,136,62,0.1)' },
         },
       ],
     });
