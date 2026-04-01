@@ -243,6 +243,12 @@ func runMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_asset_installs_asset ON asset_installs(asset_id)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_asset_installs_unique ON asset_installs(asset_id, user_id, COALESCE(instance_id, ''))`,
+		// Phase 10: version-level review + content isolation
+		`ALTER TABLE asset_versions ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected'))`,
+		`ALTER TABLE asset_versions ADD COLUMN IF NOT EXISTS rejection_reason TEXT`,
+		`ALTER TABLE asset_versions ADD COLUMN IF NOT EXISTS skill_content TEXT`,
+		`ALTER TABLE asset_versions ADD COLUMN IF NOT EXISTS readme TEXT`,
+		`CREATE INDEX IF NOT EXISTS idx_asset_versions_status ON asset_versions(status)`,
 		// Phase 5 batch 2: asset dependencies
 		`CREATE TABLE IF NOT EXISTS asset_dependencies (
 			asset_id UUID NOT NULL REFERENCES assets(id) ON DELETE CASCADE,

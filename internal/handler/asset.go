@@ -255,12 +255,15 @@ func (h *AssetHandler) Create(c *gin.Context) {
 	}
 	fileKey := filepath.Join(assetID.String(), req.Version, safeFilename)
 	av := &model.AssetVersion{
-		ID:        uuid.New(),
-		AssetID:   assetID,
-		Version:   req.Version,
-		FileKey:   fileKey,
-		FileSize:  written,
-		Changelog: changelog,
+		ID:           uuid.New(),
+		AssetID:      assetID,
+		Version:      req.Version,
+		FileKey:      fileKey,
+		FileSize:     written,
+		Changelog:    changelog,
+		Status:       model.AssetStatusPending,
+		SkillContent: skillContent,
+		Readme:       readme,
 	}
 
 	// Create asset and version in a single transaction
@@ -617,13 +620,21 @@ func (h *AssetHandler) UploadVersion(c *gin.Context) {
 
 	fileKey := filepath.Join(id.String(), version, safeFilename)
 	av := &model.AssetVersion{
-		ID:        uuid.New(),
-		AssetID:   id,
-		Version:   version,
-		FileKey:   fileKey,
-		FileSize:  written,
-		Changelog: changelogPtr,
+		ID:           uuid.New(),
+		AssetID:      id,
+		Version:      version,
+		FileKey:      fileKey,
+		FileSize:     written,
+		Changelog:    changelogPtr,
+		Status:       model.AssetStatusPending,
+		SkillContent: nil,
+		Readme:       nil,
 	}
+
+	// Extract content from zip and store in version record (NOT in assets table)
+	readme, skillContent := extractZipContent(filePath)
+	av.Readme = readme
+	av.SkillContent = skillContent
 
 	if err := h.versionRepo.Create(c.Request.Context(), av); err != nil {
 		os.RemoveAll(dir)
@@ -633,14 +644,6 @@ func (h *AssetHandler) UploadVersion(c *gin.Context) {
 		}
 		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create version")
 		return
-	}
-
-	// Extract and update zip content for new version
-	readme, skillContent := extractZipContent(filePath)
-	if readme != nil || skillContent != nil {
-		if err := h.assetRepo.UpdateReadme(c.Request.Context(), id, readme, skillContent); err != nil {
-			log.Printf("warn: failed to update readme for asset %s: %v", id, err)
-		}
 	}
 
 	middleware.RespondCreated(c, av)
@@ -691,7 +694,7 @@ func (h *AssetHandler) SetCurrentVersion(c *gin.Context) {
 		return
 	}
 
-	_, err = h.versionRepo.GetByVersion(c.Request.Context(), id, req.Version)
+	targetVer, err := h.versionRepo.GetByVersion(c.Request.Context(), id, req.Version)
 	if err != nil {
 		if errors.Is(err, repository.ErrAssetNotFound) {
 			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Version not found for this asset")
@@ -699,6 +702,19 @@ func (h *AssetHandler) SetCurrentVersion(c *gin.Context) {
 		}
 		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get version")
 		return
+	}
+
+	// Security: only allow setting an approved version as current
+	if targetVer.Status != model.AssetStatusApproved {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Only approved versions can be set as current")
+		return
+	}
+
+	// Sync skill_content and readme from the approved version to assets table
+	if targetVer.SkillContent != nil || targetVer.Readme != nil {
+		if err := h.assetRepo.UpdateReadme(c.Request.Context(), id, targetVer.Readme, targetVer.SkillContent); err != nil {
+			log.Printf("warn: failed to sync content for asset %s version %s: %v", id, req.Version, err)
+		}
 	}
 
 	if err := h.assetRepo.UpdateCurrentVersion(c.Request.Context(), id, req.Version); err != nil {

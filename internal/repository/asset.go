@@ -82,9 +82,9 @@ func (r *assetRepo) CreateWithVersion(ctx context.Context, asset *model.Asset, v
 	}
 
 	_, err = tx.Exec(ctx,
-		`INSERT INTO asset_versions (id, asset_id, version, file_key, file_size, changelog)
-		 VALUES ($1, $2, $3, $4, $5, $6)`,
-		version.ID, version.AssetID, version.Version, version.FileKey, version.FileSize, version.Changelog)
+		`INSERT INTO asset_versions (id, asset_id, version, file_key, file_size, changelog, status, skill_content, readme)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		version.ID, version.AssetID, version.Version, version.FileKey, version.FileSize, version.Changelog, version.Status, version.SkillContent, version.Readme)
 	if err != nil {
 		return err
 	}

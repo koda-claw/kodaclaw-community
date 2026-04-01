@@ -118,6 +118,10 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 		`ALTER TABLE assets ADD COLUMN IF NOT EXISTS asset_readme TEXT`,
 		`ALTER TABLE assets ADD COLUMN IF NOT EXISTS asset_skill_content TEXT`,
 		`ALTER TABLE assets ADD COLUMN IF NOT EXISTS install_count INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE asset_versions ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'pending'`,
+		`ALTER TABLE asset_versions ADD COLUMN IF NOT EXISTS rejection_reason TEXT`,
+		`ALTER TABLE asset_versions ADD COLUMN IF NOT EXISTS skill_content TEXT`,
+		`ALTER TABLE asset_versions ADD COLUMN IF NOT EXISTS readme TEXT`,
 		`CREATE TABLE IF NOT EXISTS asset_installs (
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			asset_id UUID NOT NULL REFERENCES assets(id) ON DELETE CASCADE,

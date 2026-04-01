@@ -183,6 +183,7 @@ func TestIntegration_SetCurrentVersion_Success(t *testing.T) {
 	tmpDir := t.TempDir()
 	r := setupTestRouter(pool, tmpDir)
 	creatorKey, _ := createTestUser(t, r, "ver_creator4", "password123", "kodaclaw", false)
+	adminKey, _ := createTestUser(t, r, "ver_admin4", "password123", "kodaclaw", true)
 
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
@@ -209,6 +210,34 @@ func TestIntegration_SetCurrentVersion_Success(t *testing.T) {
 	code, respBody := uploadVersion(t, r, creatorKey, asset.ID, "2.0.0", "Major update")
 	if code != 201 {
 		t.Fatalf("upload version 2.0.0: expected 201, got %d, body: %s", code, respBody)
+	}
+
+	// Get version ID for 2.0.0 and approve it via admin endpoint
+	listReq, _ := http.NewRequest("GET", "/api/v1/assets/"+asset.ID+"/versions", nil)
+	listReq.Header.Set("Authorization", "Bearer "+creatorKey)
+	w2 := httptest.NewRecorder()
+	r.ServeHTTP(w2, listReq)
+	var verList []struct {
+		ID      string `json:"id"`
+		Version string `json:"version"`
+	}
+	json.Unmarshal(w2.Body.Bytes(), &verList)
+	var v2ID string
+	for _, v := range verList {
+		if v.Version == "2.0.0" {
+			v2ID = v.ID
+			break
+		}
+	}
+	if v2ID == "" {
+		t.Fatalf("version 2.0.0 not found in list")
+	}
+	approveReq, _ := http.NewRequest("POST", "/api/v1/admin/versions/"+v2ID+"/approve", nil)
+	approveReq.Header.Set("Authorization", "Bearer "+adminKey)
+	w3 := httptest.NewRecorder()
+	r.ServeHTTP(w3, approveReq)
+	if w3.Code != 200 {
+		t.Fatalf("approve version 2.0.0: expected 200, got %d, body: %s", w3.Code, w3.Body.String())
 	}
 
 	// Set current version to 2.0.0

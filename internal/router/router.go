@@ -130,6 +130,9 @@ func Setup(
 		adminGroup.GET("/assets", adminH.ListAssets)
 		adminGroup.POST("/assets/:id/approve", adminH.Approve)
 		adminGroup.POST("/assets/:id/reject", adminH.Reject)
+		adminGroup.POST("/versions/:id/approve", adminH.ApproveVersion)
+		adminGroup.POST("/versions/:id/reject", adminH.RejectVersion)
+		adminGroup.GET("/versions/pending", adminH.ListPendingVersions)
 		adminGroup.POST("/cleanup-orphans", adminH.CleanupOrphans)
 	}
 

@@ -122,6 +122,18 @@ func (h *AdminHandler) Approve(c *gin.Context) {
 
 	if err := h.assetRepo.UpdateStatus(c.Request.Context(), id, model.AssetStatusApproved, nil); err != nil {
 		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to approve asset")
+
+	// Also approve the current version (first-time approval flow)
+	if asset.CurrentVersion != nil && *asset.CurrentVersion != "" {
+		currentVer, err := h.versionRepo.GetByVersion(c.Request.Context(), id, *asset.CurrentVersion)
+		if err == nil && currentVer.Status != model.AssetStatusApproved {
+			_ = h.versionRepo.UpdateStatus(c.Request.Context(), currentVer.ID, string(model.AssetStatusApproved), nil)
+			// Sync version content to assets table
+			if currentVer.SkillContent != nil || currentVer.Readme != nil {
+				_ = h.assetRepo.UpdateReadme(c.Request.Context(), id, currentVer.Readme, currentVer.SkillContent)
+			}
+		}
+	}
 		return
 	}
 
@@ -290,5 +302,185 @@ func (h *AdminHandler) CleanupOrphans(c *gin.Context) {
 		"deleted":       len(deleted),
 		"deleted_paths": deleted,
 		"errors":        deleteErrors,
+	})
+}
+
+// ApproveVersion godoc
+// @Summary [管理员] 审核通过版本
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "版本 UUID"
+// @Success 200 {object} object
+// @Failure 403 {object} middleware.ErrorResponse
+// @Failure 404 {object} middleware.ErrorResponse
+// @Router /admin/versions/{id}/approve [post]
+func (h *AdminHandler) ApproveVersion(c *gin.Context) {
+	isAdmin, ok := c.Get(middleware.ContextIsAdmin)
+	if !ok || !isAdmin.(bool) {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Admin access required")
+		return
+	}
+
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid version ID")
+		return
+	}
+
+	ver, err := h.versionRepo.GetByID(c.Request.Context(), id)
+	if err != nil {
+		middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Version not found")
+		return
+	}
+
+	if err := h.versionRepo.UpdateStatus(c.Request.Context(), ver.ID, string(model.AssetStatusApproved), nil); err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to approve version")
+		return
+	}
+
+	// If this is the current version, sync content to assets table
+	asset, err := h.assetRepo.GetByID(c.Request.Context(), ver.AssetID)
+	if err == nil && asset.CurrentVersion != nil && *asset.CurrentVersion == ver.Version {
+		if ver.SkillContent != nil || ver.Readme != nil {
+			_ = h.assetRepo.UpdateReadme(c.Request.Context(), ver.AssetID, ver.Readme, ver.SkillContent)
+		}
+	}
+
+	// Notify author
+	assetName := "unknown"
+	if asset != nil {
+		assetName = asset.Name
+	}
+	msg := fmt.Sprintf("您的资产 %s 版本 %s 已通过审核", assetName, ver.Version)
+	authorID := ver.AssetID
+	if asset != nil {
+		authorID = asset.AuthorID
+	}
+	n := &model.Notification{
+		UserID:         authorID,
+		Type:           "version_approved",
+		Title:          "版本审核通过",
+		Message:        &msg,
+		RelatedAssetID: &ver.AssetID,
+	}
+	_ = h.notificationRepo.Create(c.Request.Context(), n)
+
+	middleware.RespondOK(c, gin.H{
+		"message":  "Version approved",
+		"id":       ver.ID,
+		"version":  ver.Version,
+		"asset_id": ver.AssetID,
+	})
+}
+
+// RejectVersion godoc
+// @Summary [管理员] 拒绝版本
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "版本 UUID"
+// @Param body body model.RejectRequest true "拒绝原因"
+// @Success 200 {object} object
+// @Failure 403 {object} middleware.ErrorResponse
+// @Failure 404 {object} middleware.ErrorResponse
+// @Router /admin/versions/{id}/reject [post]
+func (h *AdminHandler) RejectVersion(c *gin.Context) {
+	isAdmin, ok := c.Get(middleware.ContextIsAdmin)
+	if !ok || !isAdmin.(bool) {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Admin access required")
+		return
+	}
+
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid version ID")
+		return
+	}
+
+	var req model.RejectRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Reason is required")
+		return
+	}
+
+	ver, err := h.versionRepo.GetByID(c.Request.Context(), id)
+	if err != nil {
+		middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Version not found")
+		return
+	}
+
+	reason := req.Reason
+	if err := h.versionRepo.UpdateStatus(c.Request.Context(), ver.ID, string(model.AssetStatusRejected), &reason); err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to reject version")
+		return
+	}
+
+	asset, err := h.assetRepo.GetByID(c.Request.Context(), ver.AssetID)
+	assetName := "unknown"
+	authorID := ver.AssetID
+	if err == nil && asset != nil {
+		assetName = asset.Name
+		authorID = asset.AuthorID
+	}
+	msg := fmt.Sprintf("您的资产 %s 版本 %s 被拒绝: %s", assetName, ver.Version, reason)
+	n := &model.Notification{
+		UserID:         authorID,
+		Type:           "version_rejected",
+		Title:          "版本审核拒绝",
+		Message:        &msg,
+		RelatedAssetID: &ver.AssetID,
+	}
+	_ = h.notificationRepo.Create(c.Request.Context(), n)
+
+	middleware.RespondOK(c, gin.H{
+		"message":  "Version rejected",
+		"id":       ver.ID,
+		"version":  ver.Version,
+		"reason":   reason,
+	})
+}
+
+// ListPendingVersions godoc
+// @Summary [管理员] 获取待审核版本列表
+// @Tags admin
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "页码"
+// @Param page_size query int false "每页数量"
+// @Success 200 {object} object
+// @Router /admin/versions/pending [get]
+func (h *AdminHandler) ListPendingVersions(c *gin.Context) {
+	isAdmin, ok := c.Get(middleware.ContextIsAdmin)
+	if !ok || !isAdmin.(bool) {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Admin access required")
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	versions, total, err := h.versionRepo.ListPending(c.Request.Context(), page, pageSize)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list pending versions")
+		return
+	}
+	if versions == nil {
+		versions = []model.AssetVersion{}
+	}
+
+	middleware.RespondOK(c, gin.H{
+		"items":     versions,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
 	})
 }

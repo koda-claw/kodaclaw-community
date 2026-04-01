@@ -47,13 +47,17 @@ type AssetDependency struct {
 }
 
 type AssetVersion struct {
-	ID        uuid.UUID `json:"id"`
-	AssetID   uuid.UUID `json:"asset_id"`
-	Version   string    `json:"version"`
-	FileKey   string    `json:"file_key"`
-	FileSize  int64     `json:"file_size"`
-	Changelog *string   `json:"changelog,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	ID             uuid.UUID `json:"id"`
+	AssetID        uuid.UUID `json:"asset_id"`
+	Version        string    `json:"version"`
+	FileKey        string    `json:"file_key"`
+	FileSize       int64     `json:"file_size"`
+	Changelog      *string   `json:"changelog,omitempty"`
+	Status         AssetStatus `json:"status"`
+	RejectionReason *string  `json:"rejection_reason,omitempty"`
+	SkillContent   *string   `json:"skill_content,omitempty"`
+	Readme         *string   `json:"readme,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 type UploadAssetRequest struct {
