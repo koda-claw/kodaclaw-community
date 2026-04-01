@@ -281,3 +281,44 @@ func parseUUID(c *gin.Context, param string) (uuid.UUID, error) {
 	}
 	return id, nil
 }
+
+// ListAssetVersions godoc
+// @Summary 获取资产公开版本列表
+// @Tags public
+// @Produce json
+// @Param id path string true "资产 UUID"
+// @Success 200 {array} model.AssetVersion
+// @Router /public/skills/{id}/versions [get]
+func (h *PublicHandler) ListAssetVersions(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid asset ID")
+		return
+	}
+
+	// Only list versions if the asset itself is approved
+	asset, err := h.assetRepo.GetByID(c.Request.Context(), id)
+	if err != nil || asset == nil || asset.Status != model.AssetStatusApproved {
+		middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Asset not found")
+		return
+	}
+
+	versions, err := h.versionRepo.ListByAssetID(c.Request.Context(), id)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list versions")
+		return
+	}
+
+	if versions == nil {
+		versions = []model.AssetVersion{}
+	}
+
+	// Only return approved versions to public
+	result := make([]model.AssetVersion, 0)
+	for _, v := range versions {
+		if v.Status == model.AssetStatusApproved {
+			result = append(result, v)
+		}
+	}
+	middleware.RespondOK(c, result)
+}
