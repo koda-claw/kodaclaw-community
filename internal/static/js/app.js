@@ -49,29 +49,16 @@ window.addEventListener('hashchange', () => { setTimeout(refreshIcons, 100); });
         <div class="hero-inner">
           <h1 class="hero-title">发现和分享 KodaClaw 技能与灵魂模板</h1>
           <p class="hero-sub">一个开放的社区，让你的 AI 伙伴变得更强大</p>
+          <div id="landing-stats" class="hero-stats">${Components.spinner()}</div>
           <div class="hero-actions">
             <a href="#/assets" class="btn btn-primary btn-lg">浏览资产</a>
             <a href="https://github.com/koda-claw/kodaclaw-community" class="btn btn-outline btn-lg" target="_blank">GitHub</a>
           </div>
-          <div id="landing-stats" class="hero-stats">${Components.spinner()}</div>
         </div>
       </div>
-      <div class="landing-sections">
-        <div class="landing-section">
-          <div class="section-inner">
-            <h2 class="section-title"><i data-lucide="flame" class="inline-icon"></i> 热门推荐</h2>
-            <div id="landing-hot" class="asset-grid">${Components.spinner()}</div>
-          </div>
-        </div>
-        <div class="landing-section">
-          <div class="section-inner">
-            <h2 class="section-title"><i data-lucide="sparkles" class="inline-icon"></i> 最新上架</h2>
-            <div id="landing-new" class="asset-grid">${Components.spinner()}</div>
-          </div>
-        </div>
-        <div class="how-it-works">
-          <h2 class="section-title-center">如何使用</h2>
-          <div class="hiw-grid">
+      <div class="how-it-works">
+        <h2 class="section-title-center">如何使用</h2>
+        <div class="hiw-grid">
             <div class="hiw-card">
               <div class="hiw-icon"><i data-lucide="bot" class="inline-icon"></i></div>
               <h3>KodaClaw 用户</h3>
@@ -102,7 +89,7 @@ window.addEventListener('hashchange', () => { setTimeout(refreshIcons, 100); });
     } catch { document.getElementById('landing-stats').innerHTML = ''; }
 
     try {
-      const data = await API.get('/public/skills?sort=downloads&page_size=4', { public: true });
+      const data = await API.get('/public/skills?sort=downloads&page_size=3', { public: true });
       const assets = data.items || [];
       const el = document.getElementById('landing-hot');
       el.innerHTML = assets.length ? assets.map(Components.assetCard).join('') : Components.emptyState('暂无资产');
@@ -110,7 +97,7 @@ window.addEventListener('hashchange', () => { setTimeout(refreshIcons, 100); });
     } catch { document.getElementById('landing-hot').innerHTML = ''; }
 
     try {
-      const data = await API.get('/public/skills?sort=created_at&page_size=4', { public: true });
+      const data = await API.get('/public/skills?sort=created_at&page_size=3', { public: true });
       const assets = data.items || [];
       const el = document.getElementById('landing-new');
       el.innerHTML = assets.length ? assets.map(Components.assetCard).join('') : Components.emptyState('暂无资产');
