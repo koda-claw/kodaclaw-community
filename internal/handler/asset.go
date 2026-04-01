@@ -70,7 +70,9 @@ func NewAssetHandlerFull(assetRepo repository.AssetRepository, versionRepo repos
 
 const maxReadmeSize = 100 * 1024 // 100KB
 
-// extractZipContent reads a saved zip file and returns content of README.md and SKILL.md if present.
+// extractZipContent reads a saved zip file and returns content of README.md, SKILL.md, or SOUL.md if present.
+// For skill assets: extracts README.md and SKILL.md.
+// For soul assets: extracts SOUL.md (stored in skillContent field for reuse).
 func extractZipContent(filePath string) (readme, skillContent *string) {
 	r, err := zip.OpenReader(filePath)
 	if err != nil {
@@ -80,7 +82,7 @@ func extractZipContent(filePath string) (readme, skillContent *string) {
 
 	for _, f := range r.File {
 		name := filepath.Base(f.Name)
-		if name != "README.md" && name != "SKILL.md" {
+		if name != "README.md" && name != "SKILL.md" && name != "SOUL.md" {
 			continue
 		}
 		rc, err := f.Open()
@@ -95,7 +97,7 @@ func extractZipContent(filePath string) (readme, skillContent *string) {
 		s := string(data)
 		if name == "README.md" {
 			readme = &s
-		} else {
+		} else if name == "SKILL.md" || name == "SOUL.md" {
 			skillContent = &s
 		}
 	}
