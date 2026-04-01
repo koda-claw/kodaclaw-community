@@ -941,8 +941,8 @@ a:hover { color: var(--accent-hover); }
   font-family: 'Syne', system-ui, sans-serif;
   font-size: clamp(2.1rem, 5.5vw, 3.75rem);
   font-weight: 800;
-  line-height: 1.08;
-  letter-spacing: -.035em;
+  line-height: 1.2;
+  letter-spacing: -.015em;
   color: var(--text);
   margin-bottom: 1.25rem;
 }
@@ -989,8 +989,8 @@ a:hover { color: var(--accent-hover); }
   font-size: 2.25rem;
   font-weight: 800;
   color: var(--text);
-  line-height: 1;
-  letter-spacing: -.045em;
+  line-height: 1.15;
+  letter-spacing: -.02em;
   display: block;
 }
 .lp-stat-label {
