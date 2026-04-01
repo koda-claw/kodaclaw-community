@@ -285,7 +285,17 @@ function requireAuth() {
     if (githubToken) {
       localStorage.setItem('api_key', githubToken);
       window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
-      window.location.hash = '#/assets';
+      // Fetch user info (including is_admin) from /users/me
+      fetch('/api/v1/users/me', {
+        headers: { 'X-API-Key': githubToken }
+      }).then(r => r.json()).then(data => {
+        if (data.data) {
+          localStorage.setItem('user', JSON.stringify(data.data));
+        }
+        window.location.hash = '#/assets';
+      }).catch(() => {
+        window.location.hash = '#/assets';
+      });
       return;
     }
     if (githubError) {
