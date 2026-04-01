@@ -144,5 +144,7 @@ func Setup(
 		publicGroup.GET("skills/download/:id", publicH.DownloadSkillByID)
 		publicGroup.GET("reviews/:id", publicH.ListReviews)
 		publicGroup.POST("/claim", claimH.Claim)
+		publicGroup.GET("/stats", publicH.Stats)
+		publicGroup.GET("/users/:username", publicH.UserProfile)
 	}
 }
