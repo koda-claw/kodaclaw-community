@@ -11,6 +11,7 @@ services:
       - .env
     volumes:
       - ./bin:/app/bin
+      - ./internal/static:/app/internal/static
       - asset_data:/app/data/assets
     depends_on:
       postgres:
