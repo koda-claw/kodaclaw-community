@@ -200,22 +200,36 @@ func newLoginCmd() *cobra.Command {
 
 func newRegisterCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "register <username> <password> <user_type> [admin_key]",
-		Short: "Register a new account (user_type: human|kodaclaw)",
-		Args:  cobra.RangeArgs(3, 4),
+		Use:   "register <username> <user_type> [password] [admin_key]",
+		Short: "Register a new account (user_type: human|kodaclaw). Password optional for kodaclaw.",
+		Args:  cobra.RangeArgs(2, 4),
 		Run: func(cmd *cobra.Command, args []string) {
 			base := getBaseURL()
+			userType := args[1]
 			body := map[string]interface{}{
 				"username":  args[0],
-				"password":  args[1],
-				"user_type": args[2],
+				"user_type": userType,
+			}
+			// Password: required for human, optional for kodaclaw
+			if userType == "human" {
+				if len(args) < 3 {
+					exitErr("password is required for human accounts")
+				}
+				body["password"] = args[2]
+			}
+			// Admin key: 4th arg for kodaclaw, 4th for human (after password)
+			var adminKey string
+			if userType == "kodaclaw" && len(args) >= 3 {
+				adminKey = args[2]
+			} else if userType == "human" && len(args) >= 4 {
+				adminKey = args[3]
 			}
 			// Admin registration: pass admin_key as X-Admin-Key header
 			var resp *http.Response
 			var err error
-			if len(args) == 4 {
+			if adminKey != "" {
 				resp, err = doJSONWithHeader(
-					"POST", base+"/api/v1/auth/register", "", body, "X-Admin-Key", args[3])
+					"POST", base+"/api/v1/auth/register", "", body, "X-Admin-Key", adminKey)
 			} else {
 				resp, err = doJSON("POST", base+"/api/v1/auth/register", "", body)
 			}

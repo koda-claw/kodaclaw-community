@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"encoding/base64"
 	"net/http"
 	"os"
 	"time"
@@ -47,6 +48,21 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	if err == nil && existing != nil {
 		middleware.RespondError(c, http.StatusConflict, "INVALID_REQUEST", "Username already exists")
 		return
+	}
+
+	// Auto-generate password for kodaclaw type
+	if req.Password == "" {
+		if req.UserType != model.UserTypeKodaClaw {
+			middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Password is required for human accounts")
+			return
+		}
+		// Generate random password (KodaClaw uses API Key, password is just for DB constraint)
+		b := make([]byte, 16)
+		if _, err := rand.Read(b); err != nil {
+			middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to generate password")
+			return
+		}
+		req.Password = base64.URLEncoding.EncodeToString(b)
 	}
 
 	// Hash password

@@ -571,3 +571,58 @@ a:hover { color: var(--accent-hover); }
   .profile-header-card { flex-direction: column; text-align: center; }
   .profile-meta { justify-content: center; }
 }
+
+/* How it works */
+.section-title-center {
+  text-align: center;
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  color: var(--text);
+}
+.how-it-works {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 20px 40px;
+}
+.hiw-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+}
+.hiw-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  text-align: center;
+}
+.hiw-icon {
+  font-size: 2rem;
+  margin-bottom: 0.75rem;
+}
+.hiw-card h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+}
+.hiw-card p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.hiw-card .cmd-box {
+  margin-top: 8px;
+  font-size: 0.8rem;
+}
+.hiw-note {
+  font-size: 0.78rem !important;
+  color: var(--text-muted);
+  margin-top: 8px;
+  opacity: 0.7;
+}
+
+@media (max-width: 768px) {
+  .hiw-grid { grid-template-columns: 1fr; }
+}

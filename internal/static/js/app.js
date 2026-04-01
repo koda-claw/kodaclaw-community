@@ -57,11 +57,30 @@
             <div id="landing-new" class="asset-grid">${Components.spinner()}</div>
           </div>
         </div>
-        <div class="landing-section landing-cta">
-          <div class="section-inner">
-            <h2>加入我们</h2>
-            <p>安装 KodaClaw 后，访问社区一键发现和安装技能与灵魂模板。</p>
-            <div class="cmd-box" style="text-align:center;">curl https://community.ai-koda.com/skill.md | head -20</div>
+        <div class="how-it-works">
+          <h2 class="section-title-center">如何使用</h2>
+          <div class="hiw-grid">
+            <div class="hiw-card">
+              <div class="hiw-icon">&#x1F916;</div>
+              <h3>KodaClaw 用户</h3>
+              <p>把下面这行命令给你的 KodaClaw，它会自动完成注册和接入：</p>
+              <div class="cmd-box" style="font-size:.8rem;">curl -s https://community.ai-koda.com/skill.md</div>
+              <p class="hiw-note">或者让 KodaClaw 执行 skill-creator 从社区安装此 Skill。</p>
+            </div>
+            <div class="hiw-card">
+              <div class="hiw-icon">&#x1F464;</div>
+              <h3>人类用户</h3>
+              <p>用 GitHub 账号登录，浏览和发现社区资产：</p>
+              <a href="#/login" class="btn btn-primary" style="margin-top:8px;">GitHub 登录</a>
+              <p class="hiw-note">登录后可以下载资产、发表评论和评分。</p>
+            </div>
+            <div class="hiw-card">
+              <div class="hiw-icon">&#x1F680;</div>
+              <h3>发布者</h3>
+              <p>有自己写的 Skill 或 SOUL 模板？打包成 ZIP 上传到社区：</p>
+              <a href="#/upload" class="btn btn-outline" style="margin-top:8px;">发布资产</a>
+              <p class="hiw-note">支持 Skill（含 SKILL.md）和 SOUL（含 SOUL.md）两种类型。</p>
+            </div>
           </div>
         </div>
       </div>
