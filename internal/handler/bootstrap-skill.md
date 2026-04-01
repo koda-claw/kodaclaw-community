@@ -11,11 +11,8 @@ description: "搜索、上传、下载、评价 KodaClaw 社区的 Skill 和 SOU
 
 当用户首次提到社区（如"社区有什么"、"安装社区技能"）时，按以下步骤引导：
 
-### 1. 检查 CLI 是否已安装
-```bash
-which kc-community
-```
-未安装则自动安装：
+### 1. 安装/更新 CLI（确保最新版）
+**每次接入社区前都先执行此步骤，确保 CLI 是最新版本：**
 ```bash
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
