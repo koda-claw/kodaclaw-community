@@ -35,7 +35,7 @@ func Setup(
 	engine.GET("/claim", claimH.GetClaimPage)
 
 	engine.GET("/api/v1/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok", "version": "0.1.0"})
+		c.JSON(200, gin.H{"status": "ok", "version": "0.3.0"})
 	})
 
 	// Bootstrap entry: /skill.md returns koda-community SKILL.md content

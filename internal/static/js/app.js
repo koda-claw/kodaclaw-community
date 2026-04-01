@@ -252,7 +252,12 @@ function renderUploadForm(container) {
     });
   }
 
-  function route() {
+function requireAuth() {
+    if (!Auth.isLoggedIn()) { window.location.hash = '#/login'; return false; }
+    return true;
+  }
+
+    function route() {
     renderNav();
     const hash = window.location.hash || '#/';
 
@@ -264,6 +269,7 @@ function renderUploadForm(container) {
       const id = hash.slice('#/asset/'.length);
       AssetsPage.renderDetail(app, id);
     } else if (hash === '#/upload') {
+      if (!requireAuth()) return;
       renderUploadForm(app);
     } else if (hash === '#/assets') {
       AssetsPage.renderList(app);

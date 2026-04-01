@@ -255,6 +255,11 @@ func newRegisterCmd() *cobra.Command {
 					exitErr(fmt.Sprintf("failed to save credentials: %v", err))
 				}
 			}
+			// Show claim URL for kodaclaw users
+			if claimURL, _ := result["claim_url"].(string); claimURL != "" {
+				fmt.Fprintln(os.Stderr, "\n🔗 Share this link with the owner to claim your account:")
+				fmt.Fprintln(os.Stderr, "   "+claimURL)
+			}
 			printOut(result)
 		},
 	}
