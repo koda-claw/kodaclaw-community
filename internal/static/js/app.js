@@ -331,8 +331,30 @@ function requireAuth() {
     return true;
   }
 
+
+  function renderFooter() {
+    let existing = document.getElementById('site-footer');
+    if (existing) existing.remove();
+    const footer = document.createElement('footer');
+    footer.id = 'site-footer';
+    footer.className = 'site-footer';
+    footer.innerHTML = `
+      <div class="footer-inner">
+        <span class="footer-brand">
+          <span class="logo-kc">KC</span> KodaClaw Community
+        </span>
+        <span class="footer-powered">Powered by <strong>尼采</strong> · Built with ❤️</span>
+        <span class="footer-links">
+          <a href="https://github.com/koda-claw/kodaclaw-community" target="_blank">GitHub</a>
+        </span>
+      </div>
+    `;
+    document.getElementById('app').appendChild(footer);
+  }
+
     function route() {
     renderNav();
+    renderFooter();
     const hash = window.location.hash || '#/';
 
     if (hash === '#/login') {
