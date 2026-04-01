@@ -70,8 +70,8 @@
             <div class="hiw-card">
               <div class="hiw-icon">&#x1F464;</div>
               <h3>人类用户</h3>
-              <p>用 GitHub 账号登录，浏览和发现社区资产：</p>
-              <a href="#/login" class="btn btn-primary" style="margin-top:8px;">GitHub 登录</a>
+              <p id="hiw-human-desc"></p>
+              <div id="hiw-human-action"></div>
               <p class="hiw-note">登录后可以下载资产、发表评论和评分。</p>
             </div>
             <div class="hiw-card">
