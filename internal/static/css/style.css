@@ -825,7 +825,7 @@ a:hover { color: var(--accent-hover); }
 .lp-hero {
   position: relative;
   overflow: hidden;
-  margin: -2rem -1.5rem 4.5rem;
+  margin: -2rem calc(-50vw + 50%) 4.5rem;
   min-height: 100vh;
   padding: 8rem 2rem 5.5rem;
   background: var(--bg);
