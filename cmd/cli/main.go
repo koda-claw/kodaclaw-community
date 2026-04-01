@@ -1272,10 +1272,8 @@ func newMyAssetsCmd() *cobra.Command {
 				exitErr(err.Error())
 			}
 			var me struct {
-				User struct {
-					ID       string `json:"id"`
-					Username string `json:"username"`
-				} `json:"user"`
+				ID       string `json:"id"`
+				Username string `json:"username"`
 			}
 			if err := json.NewDecoder(meResp.Body).Decode(&me); err != nil {
 				exitErr(fmt.Sprintf("failed to decode user: %v", err))
@@ -1289,7 +1287,7 @@ func newMyAssetsCmd() *cobra.Command {
 			if status != "" {
 				params.Set("status", status)
 			}
-			endpoint := creds.BaseURL + "/api/v1/users/" + me.User.ID + "/assets?" + params.Encode()
+			endpoint := creds.BaseURL + "/api/v1/users/" + me.ID + "/assets?" + params.Encode()
 			resp, err := doJSON("GET", endpoint, creds.APIKey, nil)
 			if err != nil {
 				exitErr(err.Error())
@@ -1297,7 +1295,7 @@ func newMyAssetsCmd() *cobra.Command {
 			defer resp.Body.Close()
 
 			var result struct {
-				Assets []struct {
+				Items []struct {
 					ID           string `json:"id"`
 					Name         string `json:"name"`
 					Type         string `json:"type"`
@@ -1305,23 +1303,24 @@ func newMyAssetsCmd() *cobra.Command {
 					RejectReason string `json:"rejection_reason"`
 					Version      string `json:"current_version"`
 					CreatedAt    string `json:"created_at"`
-				} `json:"assets"`
+				} `json:"items"`
 				Total int `json:"total"`
 			}
 			if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 				exitErr(fmt.Sprintf("failed to decode response: %v", err))
 			}
 
+						
 			label := "我的资产"
 			if status != "" {
 				label = "我的资产（" + status + "）"
 			}
 			fmt.Printf("%s (共 %d 个):\n", label, result.Total)
-			if len(result.Assets) == 0 {
+			if len(result.Items) == 0 {
 				fmt.Println("  （暂无资产）")
 				return
 			}
-			for i, a := range result.Assets {
+			for i, a := range result.Items {
 				statusIcon := "✅"
 				switch a.Status {
 				case "pending":
