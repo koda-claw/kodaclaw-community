@@ -7,11 +7,17 @@ on:
       - '*.md'
       - 'docs/**'
 
+permissions:
+  contents: write
+
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-go@v5
         with:
@@ -32,13 +38,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Delete existing deploy release if present
-          gh release delete deploy --yes 2>/dev/null || true
-          git push origin :refs/tags/deploy 2>/dev/null || true
-          
-          # Create lightweight tag
-          git tag -f deploy
-          git push -f origin deploy
+          # Delete existing deploy release and tag if present
+          gh release delete deploy --yes --cleanup-tag 2>/dev/null || true
           
           # Create release and upload binary
           gh release create deploy \
