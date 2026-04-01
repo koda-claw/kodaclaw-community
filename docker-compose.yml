@@ -1,6 +1,8 @@
 services:
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.runtime
     container_name: kodaclaw-community
     restart: unless-stopped
     ports:
@@ -8,6 +10,7 @@ services:
     env_file:
       - .env
     volumes:
+      - ./bin:/app/bin
       - asset_data:/app/data/assets
     depends_on:
       postgres:
