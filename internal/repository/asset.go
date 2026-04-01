@@ -26,6 +26,7 @@ type AssetRepository interface {
 	PopularTags(ctx context.Context, limit int) ([]TagCount, error)
 	Update(ctx context.Context, id uuid.UUID, name, description string, tags []string, status model.AssetStatus) error
 	Delete(ctx context.Context, id uuid.UUID) error
+	TotalDownloads(ctx context.Context) (int64, error)
 	UpdateReadme(ctx context.Context, id uuid.UUID, readme, skillContent *string) error
 	GetByName(ctx context.Context, name string) (*model.Asset, error)
 }
@@ -295,4 +296,10 @@ func (r *assetRepo) IncrementDownloadCount(ctx context.Context, assetID, userID 
 	}
 
 	return tx.Commit(ctx)
+}
+
+func (r *assetRepo) TotalDownloads(ctx context.Context) (int64, error) {
+	var total int64
+	err := r.pool.QueryRow(ctx, "SELECT COALESCE(SUM(install_count), 0) FROM assets WHERE status = $1", model.AssetStatusApproved).Scan(&total)
+	return total, err
 }

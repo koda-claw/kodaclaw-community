@@ -180,7 +180,7 @@ func setupTestRouter(pool *pgxpool.Pool, storagePath string) *gin.Engine {
 	reviewH := handler.NewReviewHandler(reviewRepo, assetRepo)
 	adminH := handler.NewAdminHandler(assetRepo, notificationRepo, versionRepo, storagePath)
 	userH := handler.NewUserHandlerWithNotifications(userRepo, assetRepo, favoriteRepo, notificationRepo)
-	publicH := handler.NewPublicHandler(assetRepo, versionRepo, reviewRepo, storagePath)
+	publicH := handler.NewPublicHandler(assetRepo, versionRepo, reviewRepo, userRepo, storagePath)
 	githubH := handler.NewGitHubHandler(userRepo)
 	claimH := handler.NewClaimHandler(userRepo)
 

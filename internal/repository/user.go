@@ -32,6 +32,7 @@ type UserRepository interface {
 	ClaimKodaClawUser(ctx context.Context, kodaclawUserID, humanUserID uuid.UUID) error
 	GetClaimedInstances(ctx context.Context, humanUserID uuid.UUID) ([]model.User, error)
 	CleanExpiredClaimTokens(ctx context.Context) (int64, error)
+	Count(ctx context.Context) (int64, error)
 }
 
 type userRepo struct {
@@ -243,4 +244,10 @@ func (r *userRepo) CreateWithGitHub(ctx context.Context, user *model.User) error
 		}
 	}
 	return err
+}
+
+func (r *userRepo) Count(ctx context.Context) (int64, error) {
+	var count int64
+	err := r.pool.QueryRow(ctx, "SELECT COUNT(*) FROM users").Scan(&count)
+	return count, err
 }

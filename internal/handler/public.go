@@ -23,11 +23,12 @@ type PublicHandler struct {
 	assetRepo   repository.AssetRepository
 	versionRepo repository.AssetVersionRepository
 	reviewRepo  repository.ReviewRepository
+	userRepo    repository.UserRepository
 	storagePath string
 }
 
-func NewPublicHandler(assetRepo repository.AssetRepository, versionRepo repository.AssetVersionRepository, reviewRepo repository.ReviewRepository, storagePath string) *PublicHandler {
-	return &PublicHandler{assetRepo: assetRepo, versionRepo: versionRepo, reviewRepo: reviewRepo, storagePath: storagePath}
+func NewPublicHandler(assetRepo repository.AssetRepository, versionRepo repository.AssetVersionRepository, reviewRepo repository.ReviewRepository, userRepo repository.UserRepository, storagePath string) *PublicHandler {
+	return &PublicHandler{assetRepo: assetRepo, versionRepo: versionRepo, reviewRepo: reviewRepo, userRepo: userRepo, storagePath: storagePath}
 }
 
 // ListSkills godoc
@@ -202,6 +203,35 @@ func (h *PublicHandler) DownloadSkillByID(c *gin.Context) {
 
 	filePath := filepath.Join(h.storagePath, av.FileKey)
 	c.FileAttachment(filePath, fmt.Sprintf("%s-%s.zip", asset.Name, av.Version))
+}
+// Stats returns community statistics (public)
+// GET /api/v1/public/stats
+func (h *PublicHandler) Stats(c *gin.Context) {
+	ctx := c.Request.Context()
+	
+	// Use existing List to get approved asset count (page_size=1, filter approved)
+	_, assetCount, err := h.assetRepo.List(ctx, repository.AssetFilter{PageSize: 1})
+	if err != nil {
+		assetCount = 0
+	}
+	
+	// Get total users
+	userCount, err := h.userRepo.Count(ctx)
+	if err != nil {
+		userCount = 0
+	}
+	
+	// Get total downloads (sum of install_count)
+	downloadCount, err := h.assetRepo.TotalDownloads(ctx)
+	if err != nil {
+		downloadCount = 0
+	}
+	
+	middleware.RespondOK(c, gin.H{
+		"assets":   assetCount,
+		"users":    userCount,
+		"downloads": downloadCount,
+	})
 }
 
 func parseUUID(c *gin.Context, param string) (uuid.UUID, error) {
