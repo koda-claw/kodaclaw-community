@@ -33,6 +33,7 @@ type UserRepository interface {
 	GetClaimedInstances(ctx context.Context, humanUserID uuid.UUID) ([]model.User, error)
 	CleanExpiredClaimTokens(ctx context.Context) (int64, error)
 	Count(ctx context.Context) (int64, error)
+	CountByDay(ctx context.Context, days int) ([]DayCount, error)
 }
 
 type userRepo struct {
@@ -250,4 +251,28 @@ func (r *userRepo) Count(ctx context.Context) (int64, error) {
 	var count int64
 	err := r.pool.QueryRow(ctx, "SELECT COUNT(*) FROM users").Scan(&count)
 	return count, err
+}
+
+func (r *userRepo) CountByDay(ctx context.Context, days int) ([]DayCount, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT TO_CHAR(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS date, COUNT(*) AS count
+		 FROM users
+		 WHERE created_at >= NOW() - ($1 || ' days')::INTERVAL
+		 GROUP BY date
+		 ORDER BY date`,
+		days)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []DayCount
+	for rows.Next() {
+		var dc DayCount
+		if err := rows.Scan(&dc.Date, &dc.Count); err != nil {
+			return nil, err
+		}
+		result = append(result, dc)
+	}
+	return result, rows.Err()
 }

@@ -43,5 +43,8 @@ const API = (() => {
     post: (path, body, opts) => request('POST', path, body, opts),
     patch: (path, body, opts) => request('PATCH', path, body, opts),
     delete: (path, opts) => request('DELETE', path, undefined, opts),
+    getDashboardStats: () => request('GET', '/admin/dashboard/stats'),
+    getDashboardTrends: (days) => request('GET', `/admin/dashboard/trends?days=${days}`),
+    getRecentReviews: (limit) => request('GET', `/admin/dashboard/recent-reviews?limit=${limit}`),
   };
 })();

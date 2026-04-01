@@ -16,7 +16,8 @@
           <a href="#/">首页</a>
           <a href="#/assets">资产市场</a>
           ${loggedIn
-            ? `<a href="#/me">个人中心</a>
+            ? `${Auth.isAdmin() ? `<a href="#/dashboard" class="nav-admin-link">&#x1F4CA; 控制台</a>` : ''}
+               <a href="#/me">个人中心</a>
                <span class="nav-user">@${Components.escHtml(user?.username || '')}</span>
                <button id="btn-logout" class="btn btn-sm btn-outline">退出</button>`
             : `<a href="#/login" class="btn btn-sm btn-primary">登录 / 注册</a>`}
@@ -264,6 +265,8 @@ function requireAuth() {
     } else if (hash === '#/upload') {
       if (!requireAuth()) return;
       renderUploadForm(app);
+    } else if (hash === '#/dashboard') {
+      DashboardPage.renderPage(app);
     } else if (hash === '#/assets') {
       AssetsPage.renderList(app);
     } else if (hash.startsWith('#/user/')) {

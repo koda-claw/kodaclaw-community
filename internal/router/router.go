@@ -134,6 +134,9 @@ func Setup(
 		adminGroup.POST("/versions/:id/reject", adminH.RejectVersion)
 		adminGroup.GET("/versions/pending", adminH.ListPendingVersions)
 		adminGroup.POST("/cleanup-orphans", adminH.CleanupOrphans)
+		adminGroup.GET("/dashboard/stats", adminH.DashboardStats)
+		adminGroup.GET("/dashboard/trends", adminH.DashboardTrends)
+		adminGroup.GET("/dashboard/recent-reviews", adminH.RecentReviews)
 	}
 
 	// Public endpoints (no auth required, rate limited)

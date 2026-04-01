@@ -139,5 +139,10 @@ const Auth = (() => {
     });
   }
 
-  return { isLoggedIn, getUser, logout, renderPage };
+  function isAdmin() {
+    const user = getUser();
+    return !!(user && user.is_admin);
+  }
+
+  return { isLoggedIn, getUser, logout, renderPage, isAdmin };
 })();

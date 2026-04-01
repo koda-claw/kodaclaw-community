@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -442,6 +443,171 @@ func (h *AdminHandler) RejectVersion(c *gin.Context) {
 		"id":       ver.ID,
 		"version":  ver.Version,
 		"reason":   reason,
+	})
+}
+
+// DashboardStats godoc
+// @Summary [管理员] Dashboard 统计数据
+// @Tags admin
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} object
+// @Router /admin/dashboard/stats [get]
+func (h *AdminHandler) DashboardStats(c *gin.Context) {
+	isAdmin, ok := c.Get(middleware.ContextIsAdmin)
+	if !ok || !isAdmin.(bool) {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Admin access required")
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	totalUsers, err := h.userRepo.Count(ctx)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get user count")
+		return
+	}
+
+	totalDownloads, err := h.assetRepo.TotalDownloads(ctx)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get download count")
+		return
+	}
+
+	_, totalAssets, err := h.assetRepo.List(ctx, repository.AssetFilter{ShowAll: true, Page: 1, PageSize: 1})
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get total assets")
+		return
+	}
+
+	_, approvedAssets, err := h.assetRepo.List(ctx, repository.AssetFilter{Status: string(model.AssetStatusApproved), Page: 1, PageSize: 1})
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get approved assets")
+		return
+	}
+
+	_, pendingAssets, err := h.assetRepo.List(ctx, repository.AssetFilter{Status: string(model.AssetStatusPending), Page: 1, PageSize: 1})
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get pending assets")
+		return
+	}
+
+	_, rejectedAssets, err := h.assetRepo.List(ctx, repository.AssetFilter{Status: string(model.AssetStatusRejected), Page: 1, PageSize: 1})
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get rejected assets")
+		return
+	}
+
+	_, pendingVersions, err := h.versionRepo.ListPending(ctx, 1, 1)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get pending versions")
+		return
+	}
+
+	middleware.RespondOK(c, gin.H{
+		"total_assets":     totalAssets,
+		"approved_assets":  approvedAssets,
+		"pending_assets":   pendingAssets,
+		"rejected_assets":  rejectedAssets,
+		"total_users":      totalUsers,
+		"total_downloads":  totalDownloads,
+		"pending_versions": pendingVersions,
+	})
+}
+
+// DashboardTrends godoc
+// @Summary [管理员] Dashboard 趋势数据
+// @Tags admin
+// @Produce json
+// @Security BearerAuth
+// @Param days query int false "天数" default(7)
+// @Success 200 {object} object
+// @Router /admin/dashboard/trends [get]
+func (h *AdminHandler) DashboardTrends(c *gin.Context) {
+	isAdmin, ok := c.Get(middleware.ContextIsAdmin)
+	if !ok || !isAdmin.(bool) {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Admin access required")
+		return
+	}
+
+	days, _ := strconv.Atoi(c.DefaultQuery("days", "7"))
+	if days < 1 || days > 90 {
+		days = 7
+	}
+
+	ctx := c.Request.Context()
+	now := time.Now().UTC()
+
+	type dayData struct {
+		Date      string `json:"date"`
+		NewAssets int    `json:"new_assets"`
+		NewUsers  int    `json:"new_users"`
+		Downloads int    `json:"downloads"`
+	}
+
+	result := make([]dayData, days)
+	for i := days - 1; i >= 0; i-- {
+		d := now.AddDate(0, 0, -i)
+		result[days-1-i] = dayData{
+			Date:      d.Format("2006-01-02"),
+			NewAssets: 0,
+			NewUsers:  0,
+			Downloads: 0,
+		}
+	}
+
+	// Query new assets per day
+	assetRows, err := h.assetRepo.CountByDay(ctx, days)
+	if err == nil {
+		dateIndex := make(map[string]int, days)
+		for i, r := range result {
+			dateIndex[r.Date] = i
+		}
+		for _, row := range assetRows {
+			if idx, ok := dateIndex[row.Date]; ok {
+				result[idx].NewAssets = row.Count
+			}
+		}
+	}
+
+	// Query new users per day
+	userRows, err := h.userRepo.CountByDay(ctx, days)
+	if err == nil {
+		dateIndex := make(map[string]int, days)
+		for i, r := range result {
+			dateIndex[r.Date] = i
+		}
+		for _, row := range userRows {
+			if idx, ok := dateIndex[row.Date]; ok {
+				result[idx].NewUsers = row.Count
+			}
+		}
+	}
+
+	middleware.RespondOK(c, gin.H{
+		"days": days,
+		"data": result,
+	})
+}
+
+// RecentReviews godoc
+// @Summary [管理员] 最近审核记录
+// @Tags admin
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "数量" default(20)
+// @Success 200 {object} object
+// @Router /admin/dashboard/recent-reviews [get]
+func (h *AdminHandler) RecentReviews(c *gin.Context) {
+	isAdmin, ok := c.Get(middleware.ContextIsAdmin)
+	if !ok || !isAdmin.(bool) {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Admin access required")
+		return
+	}
+
+	middleware.RespondOK(c, gin.H{
+		"items": []interface{}{},
+		"total": 0,
 	})
 }
 
