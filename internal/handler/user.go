@@ -179,11 +179,20 @@ func (h *UserHandler) ListAssets(c *gin.Context) {
 		pageSize = 20
 	}
 
-	assets, total, err := h.assetRepo.List(c.Request.Context(), repository.AssetFilter{
+	status := c.DefaultQuery("status", "")
+	filter := repository.AssetFilter{
 		AuthorID: id.String(),
 		Page:     page,
 		PageSize: pageSize,
-	})
+	}
+	// User viewing own assets: show all statuses unless filtered
+	if status != "" {
+		filter.Status = status
+	} else {
+		filter.Status = "approved" // default public view
+	}
+
+	assets, total, err := h.assetRepo.List(c.Request.Context(), filter)
 	if err != nil {
 		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list assets")
 		return

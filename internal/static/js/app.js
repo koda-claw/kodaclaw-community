@@ -16,7 +16,8 @@
           <a href="#/">首页</a>
           <a href="#/assets">资产市场</a>
           ${loggedIn
-            ? `<a href="#/me">个人中心</a>
+            ? `<a href="#/upload">发布资产</a>
+               <a href="#/me">个中心</a>
                <span class="nav-user">@${Components.escHtml(user?.username || '')}</span>
                <button id="btn-logout" class="btn btn-sm btn-outline">退出</button>`
             : `<a href="#/login" class="btn btn-sm btn-primary">登录 / 注册</a>`}
@@ -137,6 +138,101 @@
     }
   }
 
+function renderUploadForm(container) {
+    if (!Auth.isLoggedIn()) { window.location.hash = '#/login'; return; }
+    container.innerHTML = `
+      <div class="upload-page">
+        <h1 class="page-title">发布资产</h1>
+        <p class="page-sub">上传 ZIP 包到社区，审核通过后将公开展示</p>
+        <form id="upload-form" class="upload-form" enctype="multipart/form-data">
+          <div class="field">
+            <label>资产名称 *</label>
+            <input type="text" name="name" required placeholder="例如：mimo-tts" />
+          </div>
+          <div class="field">
+            <label>资产类型 *</label>
+            <select name="type" required>
+              <option value="skill">Skill</option>
+              <option value="soul">Soul</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>描述 *</label>
+            <textarea name="description" rows="3" required placeholder="简要描述这个资产的功能…"></textarea>
+          </div>
+          <div class="field">
+            <label>版本号 *</label>
+            <input type="text" name="version" required placeholder="1.0.0" pattern="\\d+\\.\\d+\\.\\d+" />
+          </div>
+          <div class="field">
+            <label>标签</label>
+            <input type="text" name="tags" placeholder="用英文逗号分隔，例如：tts, speech" />
+          </div>
+          <div class="field">
+            <label>ZIP 文件 * (最大 50MB)</label>
+            <div class="file-drop" id="file-drop">
+              <input type="file" id="file-input" name="file" accept=".zip" required />
+              <p>拖拽 ZIP 文件到这里，或点击选择</p>
+            </div>
+          </div>
+          <div id="upload-msg" class="msg"></div>
+          <button type="submit" class="btn btn-primary" id="btn-upload">上传</button>
+        </form>
+      </div>
+    `;
+
+    const fileDrop = document.getElementById('file-drop');
+    const fileInput = document.getElementById('file-input');
+    fileDrop.addEventListener('click', () => fileInput.click());
+    fileDrop.addEventListener('dragover', e => { e.preventDefault(); fileDrop.classList.add('dragover'); });
+    fileDrop.addEventListener('dragleave', () => fileDrop.classList.remove('dragover'));
+    fileDrop.addEventListener('drop', e => {
+      e.preventDefault();
+      fileDrop.classList.remove('dragover');
+      const files = e.dataTransfer.files;
+      if (files.length) {
+        fileInput.files = files;
+        fileDrop.querySelector('p').textContent = files[0].name;
+      }
+    });
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length) {
+        fileDrop.querySelector('p').textContent = fileInput.files[0].name;
+      }
+    });
+
+    document.getElementById('upload-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('btn-upload');
+      const msg = document.getElementById('upload-msg');
+      btn.disabled = true;
+      msg.textContent = '';
+      try {
+        const fd = new FormData(e.target);
+        const key = localStorage.getItem('api_key');
+        const res = await fetch('/api/v1/assets', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + key },
+          body: fd,
+        });
+        const data = await res.json();
+        if (res.ok) {
+          msg.textContent = '上传成功！资产已提交审核。';
+          msg.className = 'msg success';
+          setTimeout(() => { window.location.hash = '#/me'; }, 1500);
+        } else {
+          msg.textContent = data.message || data.error || '上传失败';
+          msg.className = 'msg error';
+          btn.disabled = false;
+        }
+      } catch (err) {
+        msg.textContent = '网络错误，请重试';
+        msg.className = 'msg error';
+        btn.disabled = false;
+      }
+    });
+  }
+
   function route() {
     renderNav();
     const hash = window.location.hash || '#/';
@@ -148,6 +244,8 @@
     } else if (hash.startsWith('#/asset/')) {
       const id = hash.slice('#/asset/'.length);
       AssetsPage.renderDetail(app, id);
+    } else if (hash === '#/upload') {
+      renderUploadForm(app);
     } else if (hash === '#/assets') {
       AssetsPage.renderList(app);
     } else if (hash.startsWith('#/user/')) {

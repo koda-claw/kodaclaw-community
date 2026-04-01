@@ -103,7 +103,7 @@ const UserPage = (() => {
     try {
       const me = await API.get('/users/me');
       const u = me.user || me;
-      const data = await API.get('/users/' + u.id + '/assets?page=1&page_size=50');
+      const data = await API.get('/users/' + u.id + '/assets?page=1&page_size=50&status=' + encodeURIComponent(status));
       const assets = data.assets || data.data || data || [];
       if (!assets.length) {
         el.innerHTML = Components.emptyState('你还没有发布任何资产');
