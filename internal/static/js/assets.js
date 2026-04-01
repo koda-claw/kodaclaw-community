@@ -30,7 +30,7 @@ const AssetsPage = (() => {
         </div>
         <aside id="sidebar" class="sidebar">
           <div class="sidebar-section">
-            <h3 class="sidebar-title">&#x1F525; 热门资产</h3>
+            <h3 class="sidebar-title"><i data-lucide="flame" class="inline-icon"></i> 热门资产</h3>
             <div id="hot-assets">${Components.spinner()}</div>
           </div>
         </aside>
@@ -208,7 +208,7 @@ const AssetsPage = (() => {
           </div>
 
           <div class="install-cmd">
-            <h3>&#x1F4E6; \u5FEB\u901F\u5B89\u88C5</h3>
+            <h3><i data-lucide="package" class="inline-icon"></i> \u5FEB\u901F\u5B89\u88C5</h3>
             <p>\u5728\u4F60\u7684 KodaClaw \u7EC8\u7AEF\u4E2D\u6267\u884C\uFF1A</p>
             <div class="cmd-box" id="cmd-install">kc-community install ${Components.escHtml(installName)}</div>
             <button class="btn btn-sm btn-outline" id="btn-copy-cmd">\u590D\u5236\u547D\u4EE4</button>
@@ -258,7 +258,7 @@ const AssetsPage = (() => {
       document.getElementById('btn-copy-cmd')?.addEventListener('click', () => {
         const cmd = document.getElementById('cmd-install').textContent;
         navigator.clipboard.writeText(cmd).then(() => {
-          document.getElementById('btn-copy-cmd').textContent = '\u5DF2\u590D\u5236 \u2713';
+          document.getElementById('btn-copy-cmd').textContent = '\u5DF2\u590D\u5236 <i data-lucide="check" class="inline-icon"></i>';
           setTimeout(() => { document.getElementById('btn-copy-cmd').textContent = '\u590D\u5236\u547D\u4EE4'; }, 2000);
         });
       });

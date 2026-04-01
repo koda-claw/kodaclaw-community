@@ -1,3 +1,15 @@
+
+// Initialize Lucide icons after DOM updates
+function refreshIcons() {
+  if (typeof lucide !== 'undefined') {
+    lucide.createIcons();
+  }
+}
+
+// Refresh on page load
+document.addEventListener('DOMContentLoaded', () => { setTimeout(refreshIcons, 100); });
+// Refresh on hash changes  
+window.addEventListener('hashchange', () => { setTimeout(refreshIcons, 100); });
 // SPA 路由和核心逻辑
 (function () {
   const app = document.getElementById('app');
@@ -16,13 +28,13 @@
           <a href="#/">首页</a>
           <a href="#/assets">资产市场</a>
           ${loggedIn
-            ? `${Auth.isAdmin() ? `<a href="#/dashboard" class="nav-admin-link">&#x1F4CA; 控制台</a>` : ''}
+            ? `${Auth.isAdmin() ? `<a href="#/dashboard" class="nav-admin-link"><i data-lucide="bar-chart-3" class="inline-icon"></i> 控制台</a>` : ''}
                <a href="#/me">个人中心</a>
                <span class="nav-user">@${Components.escHtml(user?.username || '')}</span>
                <button id="btn-logout" class="btn btn-sm btn-outline">退出</button>`
             : `<a href="#/login" class="btn btn-sm btn-primary">登录 / 注册</a>`}
         </nav>
-        <button class="nav-toggle" id="nav-toggle" aria-label="菜单">&#x2630;</button>
+        <button class="nav-toggle" id="nav-toggle" aria-label="菜单"><i data-lucide="menu" class="inline-icon"></i></button>
       </div>
     `;
     document.getElementById('btn-logout')?.addEventListener('click', Auth.logout);
@@ -47,13 +59,13 @@
       <div class="landing-sections">
         <div class="landing-section">
           <div class="section-inner">
-            <h2 class="section-title">&#x1F525; 热门推荐</h2>
+            <h2 class="section-title"><i data-lucide="flame" class="inline-icon"></i> 热门推荐</h2>
             <div id="landing-hot" class="asset-grid">${Components.spinner()}</div>
           </div>
         </div>
         <div class="landing-section">
           <div class="section-inner">
-            <h2 class="section-title">&#x2728; 最新上架</h2>
+            <h2 class="section-title"><i data-lucide="sparkles" class="inline-icon"></i> 最新上架</h2>
             <div id="landing-new" class="asset-grid">${Components.spinner()}</div>
           </div>
         </div>
@@ -61,14 +73,14 @@
           <h2 class="section-title-center">如何使用</h2>
           <div class="hiw-grid">
             <div class="hiw-card">
-              <div class="hiw-icon">&#x1F916;</div>
+              <div class="hiw-icon"><i data-lucide="bot" class="inline-icon"></i></div>
               <h3>KodaClaw 用户</h3>
               <p>把下面这行命令给你的 KodaClaw，它会自动完成注册和接入：</p>
               <div class="cmd-box" style="font-size:.8rem;">curl -s https://community.ai-koda.com/skill.md</div>
               <p class="hiw-note">或者让 KodaClaw 执行 skill-creator 从社区安装此 Skill。</p>
             </div>
             <div class="hiw-card">
-              <div class="hiw-icon">&#x1F464;</div>
+              <div class="hiw-icon"><i data-lucide="user" class="inline-icon"></i></div>
               <h3>人类用户</h3>
               <p id="hiw-human-desc"></p>
               <div id="hiw-human-action"></div>

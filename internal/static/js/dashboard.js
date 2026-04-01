@@ -11,7 +11,7 @@ const DashboardPage = (() => {
     container.innerHTML = `
       <div class="dashboard-page">
         <div class="page-header">
-          <h1 class="page-title">&#x1F4CA; 控制台</h1>
+          <h1 class="page-title"><i data-lucide="bar-chart-3" class="inline-icon"></i> 控制台</h1>
           <p class="page-sub">社区运营数据概览</p>
         </div>
 
@@ -22,7 +22,7 @@ const DashboardPage = (() => {
         <div class="dashboard-row">
           <div class="card chart-container">
             <div class="chart-header">
-              <h2 class="chart-title">&#x1F4C8; 近期趋势</h2>
+              <h2 class="chart-title"><i data-lucide="trending-up" class="inline-icon"></i> 近期趋势</h2>
               <div class="chart-controls">
                 <button class="btn btn-sm btn-outline trend-btn active" data-days="7">7 天</button>
                 <button class="btn btn-sm btn-outline trend-btn" data-days="14">14 天</button>
@@ -33,13 +33,13 @@ const DashboardPage = (() => {
           </div>
 
           <div class="card review-queue">
-            <h2 class="chart-title">&#x23F3; 审核队列</h2>
+            <h2 class="chart-title"><i data-lucide="clock" class="inline-icon"></i> 审核队列</h2>
             <div id="review-queue-content">${Components.spinner()}</div>
           </div>
         </div>
 
         <div class="card">
-          <h2 class="chart-title">&#x1F4CB; 最近审核记录</h2>
+          <h2 class="chart-title"><i data-lucide="clipboard-list" class="inline-icon"></i> 最近审核记录</h2>
           <div id="recent-reviews-content" class="recent-reviews">${Components.spinner()}</div>
         </div>
       </div>
@@ -66,25 +66,25 @@ const DashboardPage = (() => {
       if (!grid) return;
       grid.innerHTML = `
         <div class="stat-card">
-          <div class="stat-icon">&#x1F4E6;</div>
+          <div class="stat-icon"><i data-lucide="package" class="inline-icon"></i></div>
           <div class="stat-value">${data.total_assets ?? 0}</div>
           <div class="stat-label">总资产数</div>
           <div class="stat-sub">已上架 ${data.approved_assets ?? 0} / 待审核 <span class="${(data.pending_assets ?? 0) > 0 ? 'text-warning' : ''}">${data.pending_assets ?? 0}</span></div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon">&#x1F465;</div>
+          <div class="stat-icon"><i data-lucide="users" class="inline-icon"></i></div>
           <div class="stat-value">${data.total_users ?? 0}</div>
           <div class="stat-label">总用户数</div>
           <div class="stat-sub">注册用户</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon">&#x2B07;&#xFE0F;</div>
+          <div class="stat-icon"><i data-lucide="download" class="inline-icon"></i><i data-lucide="" class="inline-icon"></i></div>
           <div class="stat-value">${data.total_downloads ?? 0}</div>
           <div class="stat-label">总下载量</div>
           <div class="stat-sub">累计安装次数</div>
         </div>
         <div class="stat-card ${(data.pending_versions ?? 0) > 0 ? 'stat-card--warn' : ''}">
-          <div class="stat-icon">&#x1F50D;</div>
+          <div class="stat-icon"><i data-lucide="search" class="inline-icon"></i></div>
           <div class="stat-value ${(data.pending_versions ?? 0) > 0 ? 'text-warning' : ''}">${data.pending_versions ?? 0}</div>
           <div class="stat-label">待审核版本</div>
           <div class="stat-sub">
@@ -98,6 +98,7 @@ const DashboardPage = (() => {
       const grid = document.getElementById('stats-grid');
       if (grid) grid.innerHTML = `<div class="stat-card">${Components.errorBox('统计数据加载失败: ' + e.message)}</div>`;
     }
+    refreshIcons();
   }
 
   async function loadTrends(days) {
