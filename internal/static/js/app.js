@@ -354,7 +354,6 @@ function requireAuth() {
 
     function route() {
     renderNav();
-    renderFooter();
     const hash = window.location.hash || '#/';
 
     if (hash === '#/login') {
@@ -377,6 +376,7 @@ function requireAuth() {
     } else {
       renderLanding(app);
     }
+    renderFooter();
   }
 
   window.addEventListener('hashchange', route);
