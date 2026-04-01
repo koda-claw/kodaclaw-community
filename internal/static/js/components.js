@@ -29,20 +29,15 @@ const Components = (() => {
     `;
   }
 
-  function reviewCard(review) {
-    const stars = '★'.repeat(review.rating || 0) + '☆'.repeat(5 - (review.rating || 0));
+    function reviewCard(review) {
+    const scores = [review.usefulness, review.security, review.compatibility].filter(s => s && s > 0);
+    const avg = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+    const stars = '\u2605'.repeat(Math.round(avg)) + '\u2606'.repeat(5 - Math.round(avg));
     const date = review.created_at ? new Date(review.created_at).toLocaleDateString('zh-CN') : '';
-    return `
-      <div class="review-card">
-        <div class="review-header">
-          <span class="review-author">@${escHtml(review.reviewer_name || review.reviewer_id || '')}</span>
-          <span class="review-stars">${stars}</span>
-          <span class="review-date">${date}</span>
-        </div>
-        <p class="review-body">${escHtml(review.comment || '')}</p>
-      </div>
-    `;
+    const dimLabel = (v, label) => v ? '<span class="dim-score" title="' + label + ' ' + v + '/5">' + label + ': ' + v + '</span>' : '';
+    return '\n      <div class="review-card">\n        <div class="review-header">\n          <span class="review-author">@' + escHtml(review.username || review.user_id || '') + '</span>\n          <span class="review-stars">' + stars + (avg ? ' ' + avg.toFixed(1) : '') + '</span>\n          <span class="review-date">' + date + '</span>\n        </div>\n        <p class="review-body">' + escHtml(review.content || '') + '</p>\n        ' + (scores.length ? '<div class="review-scores">' + dimLabel(review.usefulness, '\u5b9e\u7528\u6027') + dimLabel(review.security, '\u5b89\u5168\u6027') + dimLabel(review.compatibility, '\u517c\u5bb9\u6027') + '</div>' : '') + '\n      </div>\n    ';
   }
+
 
   function notificationItem(n) {
     const date = n.created_at ? new Date(n.created_at).toLocaleString('zh-CN') : '';
