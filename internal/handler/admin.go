@@ -202,6 +202,15 @@ func (h *AdminHandler) Reject(c *gin.Context) {
 		return
 	}
 
+	// Cascade: reject all pending versions for this asset
+	cascadeReason := "资产已被拒绝，版本跟随拒绝"
+	versions, _ := h.versionRepo.ListByAssetID(c.Request.Context(), id)
+	for _, v := range versions {
+		if v.Status == model.AssetStatusPending {
+			_ = h.versionRepo.UpdateStatus(c.Request.Context(), v.ID, string(model.AssetStatusRejected), &cascadeReason)
+		}
+	}
+
 	msg := fmt.Sprintf("您的资产 %s 被拒绝: %s", asset.Name, reason)
 	n := &model.Notification{
 		UserID:         asset.AuthorID,
