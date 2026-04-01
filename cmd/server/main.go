@@ -94,7 +94,7 @@ func main() {
 	authH := handler.NewAuthHandler(userRepo)
 	assetH := handler.NewAssetHandlerFull(assetRepo, versionRepo, userRepo, favoriteRepo, depRepo, installRepo, cfg.AssetStoragePath)
 	reviewH := handler.NewReviewHandler(reviewRepo, assetRepo)
-	adminH := handler.NewAdminHandler(assetRepo, notificationRepo, versionRepo, cfg.AssetStoragePath)
+	adminH := handler.NewAdminHandler(assetRepo, notificationRepo, versionRepo, userRepo, cfg.AssetStoragePath)
 	userH := handler.NewUserHandlerWithNotifications(userRepo, assetRepo, favoriteRepo, notificationRepo)
 	publicH := handler.NewPublicHandler(assetRepo, versionRepo, reviewRepo, userRepo, cfg.AssetStoragePath)
 	githubH := handler.NewGitHubHandler(userRepo)

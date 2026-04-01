@@ -182,7 +182,7 @@ func setupTestRouter(pool *pgxpool.Pool, storagePath string) *gin.Engine {
 	authH := handler.NewAuthHandler(userRepo)
 	assetH := handler.NewAssetHandlerFull(assetRepo, versionRepo, userRepo, favoriteRepo, depRepo, installRepo, storagePath)
 	reviewH := handler.NewReviewHandler(reviewRepo, assetRepo)
-	adminH := handler.NewAdminHandler(assetRepo, notificationRepo, versionRepo, storagePath)
+	adminH := handler.NewAdminHandler(assetRepo, notificationRepo, versionRepo, userRepo, storagePath)
 	userH := handler.NewUserHandlerWithNotifications(userRepo, assetRepo, favoriteRepo, notificationRepo)
 	publicH := handler.NewPublicHandler(assetRepo, versionRepo, reviewRepo, userRepo, storagePath)
 	githubH := handler.NewGitHubHandler(userRepo)

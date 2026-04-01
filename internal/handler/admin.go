@@ -19,14 +19,16 @@ type AdminHandler struct {
 	assetRepo        repository.AssetRepository
 	notificationRepo repository.NotificationRepository
 	versionRepo      repository.AssetVersionRepository
+	userRepo         repository.UserRepository
 	storagePath      string
 }
 
-func NewAdminHandler(assetRepo repository.AssetRepository, notificationRepo repository.NotificationRepository, versionRepo repository.AssetVersionRepository, storagePath string) *AdminHandler {
+func NewAdminHandler(assetRepo repository.AssetRepository, notificationRepo repository.NotificationRepository, versionRepo repository.AssetVersionRepository, userRepo repository.UserRepository, storagePath string) *AdminHandler {
 	return &AdminHandler{
 		assetRepo:        assetRepo,
 		notificationRepo: notificationRepo,
 		versionRepo:      versionRepo,
+		userRepo:         userRepo,
 		storagePath:      storagePath,
 	}
 }
@@ -473,12 +475,35 @@ func (h *AdminHandler) ListPendingVersions(c *gin.Context) {
 		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list pending versions")
 		return
 	}
-	if versions == nil {
-		versions = []model.AssetVersion{}
+
+	// Enrich with asset name and author name
+	type versionEnriched struct {
+		model.AssetVersion
+		AssetName  string `json:"asset_name"`
+		AuthorName string `json:"author_name"`
+	}
+	enriched := make([]versionEnriched, 0, len(versions))
+	for _, v := range versions {
+		var e versionEnriched
+		e.AssetVersion = v
+		// Fetch asset name
+		asset, err := h.assetRepo.GetByID(c.Request.Context(), v.AssetID)
+		if err == nil {
+			e.AssetName = asset.Name
+			// Fetch author name
+			user, err := h.userRepo.GetByID(c.Request.Context(), asset.AuthorID)
+			if err == nil {
+				e.AuthorName = user.Username
+			}
+		}
+		enriched = append(enriched, e)
+	}
+	if enriched == nil {
+		enriched = []versionEnriched{}
 	}
 
 	middleware.RespondOK(c, gin.H{
-		"items":     versions,
+		"items":     enriched,
 		"total":     total,
 		"page":      page,
 		"page_size": pageSize,
