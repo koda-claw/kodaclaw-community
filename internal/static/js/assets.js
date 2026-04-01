@@ -94,7 +94,7 @@ const AssetsPage = (() => {
           const stars = rating ? '&#x2605;'.repeat(Math.round(rating)) + '&#x2606;'.repeat(5 - Math.round(rating)) : '';
           return `<a class="hot-item" href="#/asset/${encodeURIComponent(a.name)}" data-name="${Components.escHtml(a.name)}">
             <span class="hot-name">${Components.escHtml(a.name)}</span>
-            <span class="hot-meta">${stars} &middot; &#x2193;${a.install_count || 0}</span>
+            <span class="hot-meta">${stars} &middot; &#x2193;${a.download_count || 0}</span>
           </a>`;
         }).join('');
       } catch { el.innerHTML = ''; }
