@@ -36,4 +36,4 @@ kc-community
 cli
 
 # claude 
-.claude/setting.local.jsonkc-server-linux-amd64
+.claude/setting.local.json
