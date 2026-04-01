@@ -1,9 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-# KodaClaw Community - Deploy Script
-# Downloads latest server binary from GitHub Release and deploys to docker container
-
 REPO="koda-claw/kodaclaw-community"
 TAG="deploy"
 COMPOSE_DIR="/opt/kodaclaw-community"
@@ -11,26 +8,32 @@ BIN_DIR="${COMPOSE_DIR}/bin"
 
 echo "=== KodaClaw Community Deploy ==="
 
-# 1. Download binary from GitHub Release
+# 1. Download binary to temp location (not the mounted path)
 echo "Downloading kc-server from release '${TAG}'..."
-curl -sfL -o "${BIN_DIR}/kc-server" \
+curl -sfL -o /tmp/kc-server-new \
   "https://github.com/${REPO}/releases/download/${TAG}/kc-server"
 
-# 2. Verify download
-if [ ! -s "${BIN_DIR}/kc-server" ]; then
+if [ ! -s /tmp/kc-server-new ]; then
     echo "ERROR: Download failed or empty file"
     exit 1
 fi
 
-chmod +x "${BIN_DIR}/kc-server"
-echo "Binary downloaded ($(du -h "${BIN_DIR}/kc-server" | cut -f1))"
+chmod +x /tmp/kc-server-new
+echo "Binary downloaded ($(du -h /tmp/kc-server-new | cut -f1))"
 
-# 3. Restart container (binary is mounted via volume, no docker cp needed)
+# 2. Stop container before replacing binary (file busy if running)
+echo "Stopping container..."
 cd "$COMPOSE_DIR"
-docker restart kodaclaw-community
+docker stop kodaclaw-community
 
-# 4. Wait and verify
-echo "Waiting for container to start..."
+# 3. Replace binary
+mv /tmp/kc-server-new "${BIN_DIR}/kc-server"
+
+# 4. Start container
+echo "Starting container..."
+docker start kodaclaw-community
+
+# 5. Wait and verify
 sleep 3
 
 HEALTH=$(curl -sf http://localhost:8080/api/v1/health 2>/dev/null || echo "UNHEALTHY")
