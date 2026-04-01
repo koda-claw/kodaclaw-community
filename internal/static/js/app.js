@@ -37,6 +37,13 @@ window.addEventListener('hashchange', () => { setTimeout(refreshIcons, 100); });
         <button class="nav-toggle" id="nav-toggle" aria-label="菜单"><i data-lucide="menu" class="inline-icon"></i></button>
       </div>
     `;
+    // Active state
+    const hash = window.location.hash || '#/';
+    document.querySelectorAll('.nav-links a[href]').forEach(a => {
+      if (a.getAttribute('href') === hash || (hash !== '#/' && a.getAttribute('href') !== '#/' && hash.startsWith(a.getAttribute('href')))) {
+        a.classList.add('active');
+      }
+    });
     document.getElementById('btn-logout')?.addEventListener('click', Auth.logout);
     document.getElementById('nav-toggle')?.addEventListener('click', () => {
       nav.classList.toggle('open');
