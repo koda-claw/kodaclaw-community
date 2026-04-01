@@ -316,7 +316,7 @@ func (r *assetRepo) IncrementDownloadCount(ctx context.Context, assetID, userID 
 
 func (r *assetRepo) TotalDownloads(ctx context.Context) (int64, error) {
 	var total int64
-	err := r.pool.QueryRow(ctx, "SELECT COALESCE(SUM(install_count), 0) FROM assets WHERE status = $1", model.AssetStatusApproved).Scan(&total)
+	err := r.pool.QueryRow(ctx, "SELECT COALESCE(SUM(download_count), 0) FROM assets WHERE status = $1", model.AssetStatusApproved).Scan(&total)
 	return total, err
 }
 
