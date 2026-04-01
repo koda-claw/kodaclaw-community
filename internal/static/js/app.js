@@ -25,11 +25,11 @@ window.addEventListener('hashchange', () => { setTimeout(refreshIcons, 100); });
           <span class="logo-text">KodaClaw Community</span>
         </a>
         <nav class="nav-links">
-          <a href="#/">首页</a>
-          <a href="#/assets">资产市场</a>
+          <a href="#/"><i data-lucide="home" class="inline-icon"></i> 首页</a>
+          <a href="#/assets"><i data-lucide="store" class="inline-icon"></i> 资产市场</a>
           ${loggedIn
             ? `${Auth.isAdmin() ? `<a href="#/dashboard" class="nav-admin-link"><i data-lucide="bar-chart-3" class="inline-icon"></i> 控制台</a>` : ''}
-               <a href="#/me">个人中心</a>
+               <a href="#/me"><i data-lucide="circle-user" class="inline-icon"></i> 个人中心</a>
                <span class="nav-user">@${Components.escHtml(user?.username || '')}</span>
                <button id="btn-logout" class="btn btn-sm btn-outline">退出</button>`
             : `<a href="#/login" class="btn btn-sm btn-primary">登录 / 注册</a>`}
