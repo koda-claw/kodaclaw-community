@@ -612,6 +612,11 @@ func (h *AssetHandler) UploadVersion(c *gin.Context) {
 		return
 	}
 
+	// Supersede any existing pending versions for this asset
+	if _, err := h.versionRepo.SupersedePending(c.Request.Context(), id); err != nil {
+		log.Printf("warn: failed to supersede pending versions for asset %s: %v", id, err)
+	}
+
 	changelog := html.EscapeString(c.PostForm("changelog"))
 	var changelogPtr *string
 	if changelog != "" {

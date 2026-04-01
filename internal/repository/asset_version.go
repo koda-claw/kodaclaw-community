@@ -21,6 +21,7 @@ type AssetVersionRepository interface {
 	ListByAssetID(ctx context.Context, assetID uuid.UUID) ([]model.AssetVersion, error)
 	ListAllFileKeys(ctx context.Context) ([]string, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status string, rejectionReason *string) error
+	SupersedePending(ctx context.Context, assetID uuid.UUID) ([]uuid.UUID, error)
 	ListPending(ctx context.Context, page, pageSize int) ([]model.AssetVersion, int, error)
 }
 
@@ -124,6 +125,43 @@ func (r *assetVersionRepo) ListAllFileKeys(ctx context.Context) ([]string, error
 		keys = append(keys, key)
 	}
 	return keys, rows.Err()
+}
+
+// SupersedePending marks all pending versions of an asset as superseded.
+// Returns the IDs of superseded versions (for async cleanup).
+func (r *assetVersionRepo) SupersedePending(ctx context.Context, assetID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT id FROM asset_versions WHERE asset_id = $1 AND status = 'pending' FOR UPDATE`,
+		assetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	_, err = r.pool.Exec(ctx,
+		`UPDATE asset_versions SET status = 'superseded' WHERE asset_id = $1 AND status = 'pending'`,
+		assetID)
+	if err != nil {
+		return nil, err
+	}
+
+	return ids, nil
 }
 
 // UpdateStatus changes the review status of a version.

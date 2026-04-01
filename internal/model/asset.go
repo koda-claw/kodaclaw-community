@@ -15,7 +15,8 @@ const (
 
 	AssetStatusPending  AssetStatus = "pending"
 	AssetStatusApproved AssetStatus = "approved"
-	AssetStatusRejected AssetStatus = "rejected"
+	AssetStatusRejected  AssetStatus = "rejected"
+	AssetStatusSuperseded AssetStatus = "superseded"
 )
 
 type Asset struct {

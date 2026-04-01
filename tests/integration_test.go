@@ -61,7 +61,7 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 			type VARCHAR(20) NOT NULL CHECK (type IN ('soul', 'skill')),
 			description TEXT NOT NULL,
 			author_id UUID NOT NULL REFERENCES users(id),
-			status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+			status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'superseded')),
 			tags TEXT[] DEFAULT '{}',
 			current_version VARCHAR(50),
 			rejection_reason TEXT,
