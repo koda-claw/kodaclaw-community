@@ -287,10 +287,11 @@ function requireAuth() {
       window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
       // Fetch user info (including is_admin) from /users/me
       fetch('/api/v1/users/me', {
-        headers: { 'X-API-Key': githubToken }
+        headers: { 'Authorization': 'Bearer ' + githubToken }
       }).then(r => r.json()).then(data => {
-        if (data.data) {
-          localStorage.setItem('user', JSON.stringify(data.data));
+        const user = data.data || data;
+        if (user) {
+          localStorage.setItem('user', JSON.stringify(user));
         }
         window.location.hash = '#/assets';
       }).catch(() => {
