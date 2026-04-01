@@ -225,13 +225,24 @@ const AssetsPage = (() => {
           <form id="form-review">
             <div class="field">
               <label>\u8BC4\u5206</label>
-              <div class="star-input">
-                ${[1,2,3,4,5].map(i => `<input type="radio" name="rating" id="star${i}" value="${i}"><label for="star${i}">&#x2605;</label>`).join('')}
+              <div class="dim-scores-input">
+                <div class="dim-row">
+                  <label>\u5B9E\u7528\u6027</label>
+                  <div class="star-input">${[1,2,3,4,5].map(i => `<input type="radio" name="usefulness" id="ustar${i}" value="${i}"><label for="ustar${i}">&#x2605;</label>`).join('')}</div>
+                </div>
+                <div class="dim-row">
+                  <label>\u5B89\u5168\u6027</label>
+                  <div class="star-input">${[1,2,3,4,5].map(i => `<input type="radio" name="security" id="sstar${i}" value="${i}"><label for="sstar${i}">&#x2605;</label>`).join('')}</div>
+                </div>
+                <div class="dim-row">
+                  <label>\u517C\u5BB9\u6027</label>
+                  <div class="star-input">${[1,2,3,4,5].map(i => `<input type="radio" name="compatibility" id="cstar${i}" value="${i}"><label for="cstar${i}">&#x2605;</label>`).join('')}</div>
+                </div>
               </div>
             </div>
             <div class="field">
               <label>\u8BC4\u8BBA</label>
-              <textarea name="comment" rows="3" placeholder="\u5206\u4EAB\u4F60\u7684\u4F7F\u7528\u4F53\u9A8C\u2026"></textarea>
+              <textarea name="content" rows="3" placeholder="\u5206\u4EAB\u4F60\u7684\u4F7F\u7528\u4F53\u9A8C\u2026"></textarea>
             </div>
             <button type="submit" class="btn btn-primary">\u63D0\u4EA4\u8BC4\u8BBA</button>
           </form>
@@ -297,12 +308,17 @@ const AssetsPage = (() => {
         if (!Auth.isLoggedIn()) { window.location.hash = '#/login'; return; }
         const fd = new FormData(e.target);
         const msg = document.getElementById('review-msg');
-        const ratingVal = parseInt(fd.get('rating'));
-        if (!ratingVal) { msg.textContent = '\u8BF7\u9009\u62E9\u8BC4\u5206'; msg.className = 'msg error'; return; }
+        const usefulnessVal = parseInt(fd.get('usefulness')) || 0;
+        const securityVal = parseInt(fd.get('security')) || 0;
+        const compatibilityVal = parseInt(fd.get('compatibility')) || 0;
+        const contentVal = fd.get('content') || '';
+        if (!usefulnessVal && !securityVal && !compatibilityVal && !contentVal) { msg.textContent = '\u8BF7\u81F3\u5C11\u586B\u5199\u4E00\u9879\u8BC4\u5206\u6216\u8BC4\u8BBA'; msg.className = 'msg error'; return; }
         try {
           await API.post('/assets/' + (asset.id || identifier) + '/reviews', {
-            rating: ratingVal,
-            comment: fd.get('comment') || '',
+            content: contentVal,
+            usefulness: usefulnessVal || undefined,
+            security: securityVal || undefined,
+            compatibility: compatibilityVal || undefined,
           });
           msg.textContent = '\u8BC4\u8BBA\u5DF2\u63D0\u4EA4\uFF01';
           msg.className = 'msg success';

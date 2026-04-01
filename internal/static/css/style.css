@@ -683,3 +683,11 @@ a:hover { color: var(--accent-hover); }
   gap: 8px;
   border-top: 1px solid var(--border);
 }
+
+/* Review dimension scores */
+.review-scores { display: flex; gap: 0.5rem; margin-top: 0.5rem; flex-wrap: wrap; }
+.dim-score { font-size: 0.75rem; color: var(--text-muted); background: var(--bg3); padding: 0.15rem 0.5rem; border-radius: 999px; }
+.dim-scores-input { display: flex; flex-direction: column; gap: 0.5rem; }
+.dim-row { display: flex; align-items: center; gap: 0.75rem; }
+.dim-row label:first-child { min-width: 60px; font-size: 0.85rem; }
+.dim-row .star-input { display: flex; gap: 0.15rem; }
