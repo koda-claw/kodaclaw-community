@@ -66,7 +66,6 @@
       </div>
     `;
 
-    // Load stats
     try {
       const stats = await API.get('/public/stats', { public: true });
       document.getElementById('landing-stats').innerHTML = `
@@ -76,29 +75,66 @@
       `;
     } catch { document.getElementById('landing-stats').innerHTML = ''; }
 
-    // Load hot assets
     try {
       const data = await API.get('/public/skills?sort=downloads&page_size=4', { public: true });
       const assets = data.items || [];
       const el = document.getElementById('landing-hot');
       el.innerHTML = assets.length ? assets.map(Components.assetCard).join('') : Components.emptyState('暂无资产');
-      el.querySelectorAll('.asset-card').forEach(card => {
-        const target = () => { window.location.hash = '#/asset/' + encodeURIComponent(card.dataset.name || card.dataset.id); };
-        card.addEventListener('click', target);
-      });
+      bindAssetClicks(el);
     } catch { document.getElementById('landing-hot').innerHTML = ''; }
 
-    // Load new assets
     try {
       const data = await API.get('/public/skills?sort=created_at&page_size=4', { public: true });
       const assets = data.items || [];
       const el = document.getElementById('landing-new');
       el.innerHTML = assets.length ? assets.map(Components.assetCard).join('') : Components.emptyState('暂无资产');
-      el.querySelectorAll('.asset-card').forEach(card => {
-        const target = () => { window.location.hash = '#/asset/' + encodeURIComponent(card.dataset.name || card.dataset.id); };
-        card.addEventListener('click', target);
-      });
+      bindAssetClicks(el);
     } catch { document.getElementById('landing-new').innerHTML = ''; }
+  }
+
+  function bindAssetClicks(container) {
+    container.querySelectorAll('.asset-card').forEach(card => {
+      const target = () => { window.location.hash = '#/asset/' + encodeURIComponent(card.dataset.name || card.dataset.id); };
+      card.addEventListener('click', target);
+      card.addEventListener('keydown', e => { if (e.key === 'Enter') target(); });
+    });
+  }
+
+  async function renderUserProfile(container, username) {
+    container.innerHTML = `<div class="user-profile">${Components.spinner()}</div>`;
+    try {
+      const data = await API.get('/public/users/' + encodeURIComponent(username), { public: true });
+      const user = data;
+      const assets = user.assets || [];
+      const joinedAt = user.created_at ? new Date(user.created_at).toLocaleDateString('zh-CN') : '';
+      const typeLabel = user.user_type === 'kodaclaw' ? 'AI 实例' : '用户';
+
+      container.innerHTML = `
+        <div class="user-profile">
+          <div class="profile-header-card">
+            <div class="profile-avatar">${Components.escHtml((username || '')[0].toUpperCase())}</div>
+            <div class="profile-info">
+              <h1>@${Components.escHtml(username)}</h1>
+              <p class="profile-bio">${Components.escHtml(user.description || user.display_name || '')}</p>
+              <div class="profile-meta">
+                <span class="badge">${typeLabel}</span>
+                <span>加入于 ${joinedAt}</span>
+                <span>${user.asset_count || 0} 个资产</span>
+              </div>
+            </div>
+          </div>
+          <div class="section">
+            <h2 class="section-title">发布的资产</h2>
+            <div id="profile-assets" class="asset-grid">
+              ${assets.length ? assets.map(Components.assetCard).join('') : Components.emptyState('还没有发布资产')}
+            </div>
+          </div>
+        </div>
+      `;
+      bindAssetClicks(document.getElementById('profile-assets'));
+    } catch {
+      container.innerHTML = Components.errorBox('用户不存在');
+    }
   }
 
   function route() {
@@ -114,8 +150,10 @@
       AssetsPage.renderDetail(app, id);
     } else if (hash === '#/assets') {
       AssetsPage.renderList(app);
+    } else if (hash.startsWith('#/user/')) {
+      const username = hash.slice('#/user/'.length);
+      renderUserProfile(app, decodeURIComponent(username));
     } else {
-      // #/ or any other → landing page
       renderLanding(app);
     }
   }

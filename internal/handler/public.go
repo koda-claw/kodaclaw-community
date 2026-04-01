@@ -204,6 +204,44 @@ func (h *PublicHandler) DownloadSkillByID(c *gin.Context) {
 	filePath := filepath.Join(h.storagePath, av.FileKey)
 	c.FileAttachment(filePath, fmt.Sprintf("%s-%s.zip", asset.Name, av.Version))
 }
+// UserProfile returns public user profile with their assets
+// GET /api/v1/public/users/:username
+func (h *PublicHandler) UserProfile(c *gin.Context) {
+	username := c.Param("username")
+	user, err := h.userRepo.GetByUsername(c.Request.Context(), username)
+	if err != nil {
+		middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "User not found")
+		return
+	}
+
+	// Get user's approved assets
+	filter := repository.AssetFilter{
+		AuthorID: user.ID.String(),
+		Page:     1,
+		PageSize: 100,
+	}
+	assets, total, err := h.assetRepo.List(c.Request.Context(), filter)
+	if err != nil {
+		assets = []model.Asset{}
+		total = 0
+	}
+	// Strip large fields
+	for i := range assets {
+		assets[i].Readme = nil
+		assets[i].SkillContent = nil
+	}
+
+	middleware.RespondOK(c, gin.H{
+		"username":      user.Username,
+		"displayName":   user.DisplayName,
+		"description":   user.Description,
+		"user_type":     user.UserType,
+		"created_at":    user.CreatedAt,
+		"assets":        assets,
+		"asset_count":   total,
+	})
+}
+
 // Stats returns community statistics (public)
 // GET /api/v1/public/stats
 func (h *PublicHandler) Stats(c *gin.Context) {

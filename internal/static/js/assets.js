@@ -184,7 +184,7 @@ const AssetsPage = (() => {
             <span class="badge ${typeClass}">${typeLabel}</span>
             <h1 class="detail-title">${Components.escHtml(assetName)}</h1>
             <div class="detail-meta">
-              <span>\u4F5C\u8005\uFF1A@${Components.escHtml(asset.author_name || asset.author_id || '')}</span>
+              <span>\u4F5C\u8005\uFF1A<a href="#/user/${encodeURIComponent(asset.author_name || '')}">@${Components.escHtml(asset.author_name || '')}</a></span>
               <span>\u4E0B\u8F7D\uFF1A&#x2193; ${asset.install_count || asset.download_count || 0}</span>
               <span>\u8BC4\u5206\uFF1A${stars} ${rating}</span>
             </div>
