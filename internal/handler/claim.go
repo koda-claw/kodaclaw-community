@@ -160,6 +160,17 @@ func buildClaimPageHTML(token, baseURL string) string {
     </form>
   </div>
   <script>
+    // Auto-fill API Key from localStorage (set by GitHub OAuth callback)
+    const savedKey = localStorage.getItem('api_key');
+    if (savedKey) {
+      document.getElementById('input-apikey').value = savedKey;
+    }
+    // If no key, show login hint
+    if (!savedKey) {
+      document.getElementById('input-apikey').placeholder = '请先登录（点击页面右上角）';
+      document.getElementById('btn-claim').disabled = true;
+    }
+
     document.getElementById('claim-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = document.getElementById('btn-claim');
@@ -178,6 +189,7 @@ func buildClaimPageHTML(token, baseURL string) string {
         if (res.ok) {
           msg.textContent = '认领成功！实例 ' + (data.instance_name || '') + ' 已与您的账号关联。';
           msg.className = 'msg success';
+          setTimeout(() => { window.location.href = '` + "https://community.ai-koda.com" + `'; }, 1500);
         } else {
           msg.textContent = data.message || data.error || '认领失败，请检查认领码或 API Key';
           msg.className = 'msg error';
