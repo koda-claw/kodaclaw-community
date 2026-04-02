@@ -18,8 +18,10 @@ import (
 	"github.com/vanzheng/kodaclaw-community/internal/handler"
 	"github.com/vanzheng/kodaclaw-community/internal/middleware"
 	"github.com/vanzheng/kodaclaw-community/internal/model"
+	"github.com/vanzheng/kodaclaw-community/internal/relay"
 	"github.com/vanzheng/kodaclaw-community/internal/repository"
 	"github.com/vanzheng/kodaclaw-community/internal/router"
+	"github.com/vanzheng/kodaclaw-community/internal/service"
 )
 
 // Integration tests using real PostgreSQL (Docker)
@@ -176,24 +178,27 @@ func setupTestRouter(pool *pgxpool.Pool, storagePath string) *gin.Engine {
 	reviewRepo := repository.NewReviewRepository(pool)
 	favoriteRepo := repository.NewFavoriteRepository(pool)
 	notificationRepo := repository.NewNotificationRepository(pool)
+	relayRepo := repository.NewRelayInstanceRepository(pool)
+	hub := relay.NewHub()
+	notificationSvc := service.NewNotificationService(notificationRepo, relayRepo, hub)
 	depRepo := repository.NewAssetDependencyRepository(pool)
 	installRepo := repository.NewAssetInstallRepository(pool)
 
 	authH := handler.NewAuthHandler(userRepo)
 	assetH := handler.NewAssetHandlerFull(assetRepo, versionRepo, userRepo, favoriteRepo, depRepo, installRepo, storagePath)
 	reviewH := handler.NewReviewHandler(reviewRepo, assetRepo)
-	adminH := handler.NewAdminHandler(assetRepo, notificationRepo, versionRepo, userRepo, storagePath)
+	adminH := handler.NewAdminHandler(assetRepo, notificationSvc, versionRepo, userRepo, storagePath)
 	userH := handler.NewUserHandlerWithNotifications(userRepo, assetRepo, favoriteRepo, notificationRepo)
 	publicH := handler.NewPublicHandler(assetRepo, versionRepo, reviewRepo, userRepo, storagePath)
 	githubH := handler.NewGitHubHandler(userRepo)
-	claimH := handler.NewClaimHandler(userRepo)
+	bindH := handler.NewBindHandler(userRepo)
 
 	readLimiter := middleware.NewMemoryRateLimiter(1000, 60)
 	uploadLimiter := middleware.NewMemoryRateLimiter(1000, 60)
 	writeLimiter := middleware.NewMemoryRateLimiter(1000, 60)
 
 	engine := gin.New()
-	router.Setup(engine, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, uploadLimiter, publicH, githubH, claimH, nil, nil)
+	router.Setup(engine, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, uploadLimiter, publicH, githubH, bindH, nil, nil)
 	return engine
 }
 
