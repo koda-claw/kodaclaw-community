@@ -37,6 +37,11 @@ window.addEventListener('hashchange', () => { setTimeout(refreshIcons, 100); });
         <button class="nav-toggle" id="nav-toggle" aria-label="菜单"><i data-lucide="menu" class="inline-icon"></i></button>
       </div>
     `;
+    // Re-check admin after observed instances load (handles timing issue)
+    if (loggedIn && !Auth.isAdmin() && localStorage.getItem('observed_instance_admin') === 'true') {
+      setTimeout(renderNav, 0);
+      return;
+    }
     // Active state
     const hash = window.location.hash || '#/';
     document.querySelectorAll('.nav-links a[href]').forEach(a => {

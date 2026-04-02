@@ -44,11 +44,10 @@ const UserPage = (() => {
             <h2 class="sidebar-username">${Components.escHtml(sidebarUser.username || '')}</h2>
             <span class="badge ${typeCls} sidebar-type-badge">${typeLabel}</span>
             ${bioHtml}
+            <div id="sidebar-instance-status"></div>
           </div>
           <nav class="user-sidebar-nav">
-            <button class="nav-item active" data-tab="instances">${icons.cpu} KodaClaw 实例</button>
-            <button class="nav-item" data-tab="my-assets">${icons['my-assets']} 管理资产</button>
-            <button class="nav-item" data-tab="favorites">${icons.favorites} 收藏</button>
+            <button class="nav-item active" data-tab="my-assets">${icons['my-assets']} 管理资产</button>
             <span class="nav-group-label">系统</span>
             <button class="nav-item" data-tab="notifications">${icons.notifications} 通知</button>
             <button class="nav-item" data-tab="relay">${icons.relay} Relay</button>
@@ -78,7 +77,7 @@ const UserPage = (() => {
       window.location.hash = '#/login';
     });
 
-    loadTab('instances');
+    loadTab('my-assets');
   }
 
   async function loadTab(tab) {
@@ -90,9 +89,7 @@ const UserPage = (() => {
     content.innerHTML = Components.spinner();
 
     switch (tab) {
-      case 'instances': await renderInstances(content); break;
       case 'my-assets': await renderMyAssets(content); break;
-      case 'favorites': await renderFavorites(content); break;
       case 'notifications': await renderNotifications(content); break;
       case 'relay': await renderRelay(content); break;
     }
@@ -168,6 +165,17 @@ const UserPage = (() => {
         const obs = await API.get('/users/me/observed');
         const instances = obs.instances || [];
         if (instances.length > 0) ownerId = instances[0].id;
+        // Cache admin status for nav menu
+        const hasAdmin = instances.some(i => i.is_admin);
+        localStorage.setItem('observed_instance_admin', hasAdmin ? 'true' : 'false');
+        // Update sidebar instance status
+        const statusEl = document.getElementById('sidebar-instance-status');
+        if (statusEl && instances.length > 0) {
+          const inst = instances[0];
+          const name = inst.username || inst.instanceName || inst.id;
+          const isOn = inst.is_online || false;
+          statusEl.innerHTML = `<div style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:0.75rem;color:${isOn ? '#22c55e' : '#64748b'}"><span style="width:6px;height:6px;border-radius:50%;background:${isOn ? '#22c55e' : '#64748b'}"></span>${name}${isOn ? ' · 在线' : ' · 离线'}</div>`;
+        }
       } catch (_) {}
       let url = '/users/' + ownerId + '/assets?page=1&page_size=50';
       if (myAssetsStatus) url += '&status=' + encodeURIComponent(myAssetsStatus);
