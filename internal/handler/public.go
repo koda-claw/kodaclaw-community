@@ -13,6 +13,7 @@ import (
 	"github.com/vanzheng/kodaclaw-community/internal/middleware"
 	"github.com/vanzheng/kodaclaw-community/internal/model"
 	"github.com/vanzheng/kodaclaw-community/internal/repository"
+	"github.com/vanzheng/kodaclaw-community/internal/service"
 )
 
 //go:embed bootstrap-skill.md
@@ -25,10 +26,11 @@ type PublicHandler struct {
 	reviewRepo  repository.ReviewRepository
 	userRepo    repository.UserRepository
 	storagePath string
+	activitySvc *service.ActivityService
 }
 
-func NewPublicHandler(assetRepo repository.AssetRepository, versionRepo repository.AssetVersionRepository, reviewRepo repository.ReviewRepository, userRepo repository.UserRepository, storagePath string) *PublicHandler {
-	return &PublicHandler{assetRepo: assetRepo, versionRepo: versionRepo, reviewRepo: reviewRepo, userRepo: userRepo, storagePath: storagePath}
+func NewPublicHandler(assetRepo repository.AssetRepository, versionRepo repository.AssetVersionRepository, reviewRepo repository.ReviewRepository, userRepo repository.UserRepository, storagePath string, activitySvc *service.ActivityService) *PublicHandler {
+	return &PublicHandler{assetRepo: assetRepo, versionRepo: versionRepo, reviewRepo: reviewRepo, userRepo: userRepo, storagePath: storagePath, activitySvc: activitySvc}
 }
 
 // ListSkills godoc
@@ -144,6 +146,14 @@ func (h *PublicHandler) DownloadSkill(c *gin.Context) {
 
 	filePath := filepath.Join(h.storagePath, av.FileKey)
 	c.FileAttachment(filePath, fmt.Sprintf("%s-%s.zip", name, av.Version))
+
+	if h.activitySvc != nil {
+		if userIDStr := c.GetString(middleware.ContextUserID); userIDStr != "" {
+			if uid, err := uuid.Parse(userIDStr); err == nil {
+				h.activitySvc.Record(c.Request.Context(), uid, "download", &asset.ID)
+			}
+		}
+	}
 }
 
 // BootstrapSkill godoc

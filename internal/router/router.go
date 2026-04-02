@@ -24,7 +24,8 @@ func Setup(
 	relayH *handler.RelayHandler,
 	webhookH *handler.WebhookHandler,
 ) {
-	engine.Use(gin.Recovery())
+	engine.Use(middleware.Recovery())
+	engine.Use(middleware.RequestLogger())
 	engine.Use(middleware.ErrorHandler())
 
 	// Static frontend
@@ -143,6 +144,8 @@ func Setup(
 		adminGroup.GET("/dashboard/stats", adminH.DashboardStats)
 		adminGroup.GET("/dashboard/trends", adminH.DashboardTrends)
 		adminGroup.GET("/dashboard/recent-reviews", adminH.RecentReviews)
+		adminGroup.GET("/stats", adminH.Stats)
+		adminGroup.GET("/audit", adminH.AuditLogs)
 	}
 
 	// Public endpoints (no auth required, rate limited)

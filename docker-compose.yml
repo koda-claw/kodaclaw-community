@@ -18,6 +18,11 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "7"
 
   postgres:
     image: postgres:15-alpine
@@ -35,6 +40,11 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "7"
 
   redis:
     image: redis:7-alpine
@@ -48,6 +58,11 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "7"
 
 volumes:
   postgres_data:

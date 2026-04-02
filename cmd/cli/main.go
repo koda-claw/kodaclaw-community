@@ -1426,7 +1426,63 @@ func newAdminCmd() *cobra.Command {
 	rejectVersion.Flags().StringVar(&rejectVersionReason, "reason", "", "Rejection reason (required)")
 	_ = rejectVersion.MarkFlagRequired("reason")
 
-	adminCmd.AddCommand(pending, approve, reject, pendingVersions, approveVersion, rejectVersion)
+	stats := &cobra.Command{
+		Use:   "stats",
+		Short: "Show platform statistics",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			creds := mustLoadCreds()
+			resp, err := doJSON("GET", creds.BaseURL+"/api/v1/admin/stats", creds.APIKey, nil)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+			var result map[string]interface{}
+			if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+				return fmt.Errorf("failed to decode response: %w", err)
+			}
+			if resp.StatusCode >= 400 {
+				enc := json.NewEncoder(os.Stderr)
+				enc.SetIndent("", "  ")
+				_ = enc.Encode(result)
+				os.Exit(1)
+			}
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(result)
+		},
+	}
+
+	var auditPage, auditPageSize int
+	auditCmd := &cobra.Command{
+		Use:   "audit",
+		Short: "List admin audit logs",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			creds := mustLoadCreds()
+			endpoint := fmt.Sprintf("%s/api/v1/admin/audit?page=%d&page_size=%d", creds.BaseURL, auditPage, auditPageSize)
+			resp, err := doJSON("GET", endpoint, creds.APIKey, nil)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+			var result map[string]interface{}
+			if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+				return fmt.Errorf("failed to decode response: %w", err)
+			}
+			if resp.StatusCode >= 400 {
+				enc := json.NewEncoder(os.Stderr)
+				enc.SetIndent("", "  ")
+				_ = enc.Encode(result)
+				os.Exit(1)
+			}
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(result)
+		},
+	}
+	auditCmd.Flags().IntVar(&auditPage, "page", 1, "Page number")
+	auditCmd.Flags().IntVar(&auditPageSize, "page-size", 20, "Items per page")
+
+	adminCmd.AddCommand(pending, approve, reject, pendingVersions, approveVersion, rejectVersion, stats, auditCmd)
 	return adminCmd
 }
 

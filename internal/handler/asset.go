@@ -21,6 +21,7 @@ import (
 	"github.com/vanzheng/kodaclaw-community/internal/model"
 	"github.com/vanzheng/kodaclaw-community/internal/repository"
 	"github.com/vanzheng/kodaclaw-community/internal/security"
+	"github.com/vanzheng/kodaclaw-community/internal/service"
 )
 
 const maxFileSize = 50 * 1024 * 1024 // 50MB
@@ -35,6 +36,7 @@ type AssetHandler struct {
 	depRepo      repository.AssetDependencyRepository
 	installRepo  repository.AssetInstallRepository
 	storagePath  string
+	activitySvc  *service.ActivityService
 }
 
 func NewAssetHandler(assetRepo repository.AssetRepository, versionRepo repository.AssetVersionRepository, userRepo repository.UserRepository, storagePath string) *AssetHandler {
@@ -56,7 +58,7 @@ func NewAssetHandlerWithFavorites(assetRepo repository.AssetRepository, versionR
 	}
 }
 
-func NewAssetHandlerFull(assetRepo repository.AssetRepository, versionRepo repository.AssetVersionRepository, userRepo repository.UserRepository, favoriteRepo repository.FavoriteRepository, depRepo repository.AssetDependencyRepository, installRepo repository.AssetInstallRepository, storagePath string) *AssetHandler {
+func NewAssetHandlerFull(assetRepo repository.AssetRepository, versionRepo repository.AssetVersionRepository, userRepo repository.UserRepository, favoriteRepo repository.FavoriteRepository, depRepo repository.AssetDependencyRepository, installRepo repository.AssetInstallRepository, storagePath string, activitySvc *service.ActivityService) *AssetHandler {
 	return &AssetHandler{
 		assetRepo:    assetRepo,
 		versionRepo:  versionRepo,
@@ -65,6 +67,7 @@ func NewAssetHandlerFull(assetRepo repository.AssetRepository, versionRepo repos
 		depRepo:      depRepo,
 		installRepo:  installRepo,
 		storagePath:  storagePath,
+		activitySvc:  activitySvc,
 	}
 }
 
@@ -475,6 +478,9 @@ func (h *AssetHandler) Download(c *gin.Context) {
 	uid, err := uuid.Parse(userID)
 	if err == nil {
 		go h.assetRepo.IncrementDownloadCount(context.Background(), id, uid)
+		if h.activitySvc != nil {
+			h.activitySvc.Record(c.Request.Context(), uid, "download", &id)
+		}
 	}
 }
 
@@ -1138,6 +1144,10 @@ func (h *AssetHandler) InstallAsset(c *gin.Context) {
 	if err != nil {
 		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to record install")
 		return
+	}
+
+	if h.activitySvc != nil {
+		h.activitySvc.Record(c.Request.Context(), uid, "install", &assetID)
 	}
 
 	middleware.RespondOK(c, gin.H{"installed": true, "new": isNew})

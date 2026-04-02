@@ -23,15 +23,17 @@ type AdminHandler struct {
 	versionRepo     repository.AssetVersionRepository
 	userRepo        repository.UserRepository
 	storagePath     string
+	auditSvc        *service.AuditService
 }
 
-func NewAdminHandler(assetRepo repository.AssetRepository, notificationSvc *service.NotificationService, versionRepo repository.AssetVersionRepository, userRepo repository.UserRepository, storagePath string) *AdminHandler {
+func NewAdminHandler(assetRepo repository.AssetRepository, notificationSvc *service.NotificationService, versionRepo repository.AssetVersionRepository, userRepo repository.UserRepository, storagePath string, auditSvc *service.AuditService) *AdminHandler {
 	return &AdminHandler{
 		assetRepo:       assetRepo,
 		notificationSvc: notificationSvc,
 		versionRepo:     versionRepo,
 		userRepo:        userRepo,
 		storagePath:     storagePath,
+		auditSvc:        auditSvc,
 	}
 }
 
@@ -141,6 +143,12 @@ func (h *AdminHandler) Approve(c *gin.Context) {
 		}
 	}
 
+	if h.auditSvc != nil {
+		if opID, err := uuid.Parse(c.GetString(middleware.ContextUserID)); err == nil {
+			h.auditSvc.Log(c.Request.Context(), opID, "approve_asset", "asset", id, asset.Name)
+		}
+	}
+
 	msg := fmt.Sprintf("您的资产 %s 已通过审核", asset.Name)
 	n := &model.Notification{
 		UserID:         asset.AuthorID,
@@ -209,6 +217,12 @@ func (h *AdminHandler) Reject(c *gin.Context) {
 	for _, v := range versions {
 		if v.Status == model.AssetStatusPending {
 			_ = h.versionRepo.UpdateStatus(c.Request.Context(), v.ID, string(model.AssetStatusRejected), &cascadeReason)
+		}
+	}
+
+	if h.auditSvc != nil {
+		if opID, err := uuid.Parse(c.GetString(middleware.ContextUserID)); err == nil {
+			h.auditSvc.Log(c.Request.Context(), opID, "reject_asset", "asset", id, reason)
 		}
 	}
 
@@ -380,6 +394,12 @@ func (h *AdminHandler) ApproveVersion(c *gin.Context) {
 	}
 	_ = h.notificationSvc.CreateAndNotify(c.Request.Context(), n)
 
+	if h.auditSvc != nil {
+		if opID, err := uuid.Parse(c.GetString(middleware.ContextUserID)); err == nil {
+			h.auditSvc.Log(c.Request.Context(), opID, "approve_version", "version", ver.ID, ver.Version)
+		}
+	}
+
 	middleware.RespondOK(c, gin.H{
 		"message":  "Version approved",
 		"id":       ver.ID,
@@ -447,6 +467,12 @@ func (h *AdminHandler) RejectVersion(c *gin.Context) {
 		RelatedAssetID: &ver.AssetID,
 	}
 	_ = h.notificationSvc.CreateAndNotify(c.Request.Context(), n)
+
+	if h.auditSvc != nil {
+		if opID, err := uuid.Parse(c.GetString(middleware.ContextUserID)); err == nil {
+			h.auditSvc.Log(c.Request.Context(), opID, "reject_version", "version", ver.ID, reason)
+		}
+	}
 
 	middleware.RespondOK(c, gin.H{
 		"message":  "Version rejected",
@@ -694,6 +720,79 @@ func (h *AdminHandler) ListPendingVersions(c *gin.Context) {
 
 	middleware.RespondOK(c, gin.H{
 		"items":     enriched,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	})
+}
+
+// Stats godoc
+// @Summary [管理员] 平台统计概览
+// @Tags admin
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} object
+// @Router /admin/stats [get]
+func (h *AdminHandler) Stats(c *gin.Context) {
+	isAdmin, ok := c.Get(middleware.ContextIsAdmin)
+	if !ok || !isAdmin.(bool) {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Admin access required")
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	totalUsers, _ := h.userRepo.Count(ctx)
+	totalDownloads, _ := h.assetRepo.TotalDownloads(ctx)
+	_, totalAssets, _ := h.assetRepo.List(ctx, repository.AssetFilter{ShowAll: true, Page: 1, PageSize: 1})
+	_, approvedAssets, _ := h.assetRepo.List(ctx, repository.AssetFilter{Status: string(model.AssetStatusApproved), Page: 1, PageSize: 1})
+	_, pendingAssets, _ := h.assetRepo.List(ctx, repository.AssetFilter{Status: string(model.AssetStatusPending), Page: 1, PageSize: 1})
+	_, rejectedAssets, _ := h.assetRepo.List(ctx, repository.AssetFilter{Status: string(model.AssetStatusRejected), Page: 1, PageSize: 1})
+	_, pendingVersions, _ := h.versionRepo.ListPending(ctx, 1, 1)
+
+	middleware.RespondOK(c, gin.H{
+		"total_assets":     totalAssets,
+		"approved_assets":  approvedAssets,
+		"pending_assets":   pendingAssets,
+		"rejected_assets":  rejectedAssets,
+		"total_users":      totalUsers,
+		"total_downloads":  totalDownloads,
+		"pending_versions": pendingVersions,
+	})
+}
+
+// AuditLogs godoc
+// @Summary [管理员] 审计日志列表
+// @Tags admin
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "页码" default(1)
+// @Param page_size query int false "每页数量" default(20)
+// @Success 200 {object} object
+// @Router /admin/audit [get]
+func (h *AdminHandler) AuditLogs(c *gin.Context) {
+	isAdmin, ok := c.Get(middleware.ContextIsAdmin)
+	if !ok || !isAdmin.(bool) {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Admin access required")
+		return
+	}
+
+	if h.auditSvc == nil {
+		middleware.RespondOK(c, gin.H{"items": []interface{}{}, "total": 0})
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	logs, total, err := h.auditSvc.List(c.Request.Context(), page, pageSize)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list audit logs")
+		return
+	}
+
+	middleware.RespondOK(c, gin.H{
+		"items":     logs,
 		"total":     total,
 		"page":      page,
 		"page_size": pageSize,

@@ -24,6 +24,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/vanzheng/kodaclaw-community/internal/config"
 	"github.com/vanzheng/kodaclaw-community/internal/handler"
+	"github.com/vanzheng/kodaclaw-community/internal/logger"
 	"github.com/vanzheng/kodaclaw-community/internal/middleware"
 	"github.com/vanzheng/kodaclaw-community/internal/relay"
 	"github.com/vanzheng/kodaclaw-community/internal/repository"
@@ -36,6 +37,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
+	logger.Init(cfg.LogLevel)
 
 	poolConfig, err := pgxpool.ParseConfig(cfg.DSN())
 	if err != nil {
@@ -69,6 +71,9 @@ func main() {
 		if err := repository.RunRelayMigrations(ctx, pool); err != nil {
 			log.Fatalf("Failed to run relay migrations: %v", err)
 		}
+	}
+	if err := repository.RunObservabilityMigrations(ctx, pool); err != nil {
+		log.Fatalf("Failed to run observability migrations: %v", err)
 	}
 	log.Println("Database migrations complete")
 
@@ -107,12 +112,17 @@ func main() {
 
 	notificationSvc := service.NewNotificationService(notificationRepo, relayRepo, hub)
 
+	auditRepo := repository.NewAuditLogRepo(pool)
+	activityRepo := repository.NewUserActivityRepo(pool)
+	auditSvc := service.NewAuditService(auditRepo)
+	activitySvc := service.NewActivityService(activityRepo)
+
 	authH := handler.NewAuthHandler(userRepo)
-	assetH := handler.NewAssetHandlerFull(assetRepo, versionRepo, userRepo, favoriteRepo, depRepo, installRepo, cfg.AssetStoragePath)
-	reviewH := handler.NewReviewHandler(reviewRepo, assetRepo)
-	adminH := handler.NewAdminHandler(assetRepo, notificationSvc, versionRepo, userRepo, cfg.AssetStoragePath)
+	assetH := handler.NewAssetHandlerFull(assetRepo, versionRepo, userRepo, favoriteRepo, depRepo, installRepo, cfg.AssetStoragePath, activitySvc)
+	reviewH := handler.NewReviewHandler(reviewRepo, assetRepo, activitySvc)
+	adminH := handler.NewAdminHandler(assetRepo, notificationSvc, versionRepo, userRepo, cfg.AssetStoragePath, auditSvc)
 	userH := handler.NewUserHandlerWithNotifications(userRepo, assetRepo, favoriteRepo, notificationRepo)
-	publicH := handler.NewPublicHandler(assetRepo, versionRepo, reviewRepo, userRepo, cfg.AssetStoragePath)
+	publicH := handler.NewPublicHandler(assetRepo, versionRepo, reviewRepo, userRepo, cfg.AssetStoragePath, activitySvc)
 	githubH := handler.NewGitHubHandler(userRepo)
 	bindH := handler.NewBindHandler(userRepo, relayRepo, hub)
 

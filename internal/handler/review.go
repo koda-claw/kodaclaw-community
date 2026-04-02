@@ -10,15 +10,17 @@ import (
 	"github.com/vanzheng/kodaclaw-community/internal/middleware"
 	"github.com/vanzheng/kodaclaw-community/internal/model"
 	"github.com/vanzheng/kodaclaw-community/internal/repository"
+	"github.com/vanzheng/kodaclaw-community/internal/service"
 )
 
 type ReviewHandler struct {
-	reviewRepo repository.ReviewRepository
-	assetRepo  repository.AssetRepository
+	reviewRepo  repository.ReviewRepository
+	assetRepo   repository.AssetRepository
+	activitySvc *service.ActivityService
 }
 
-func NewReviewHandler(reviewRepo repository.ReviewRepository, assetRepo repository.AssetRepository) *ReviewHandler {
-	return &ReviewHandler{reviewRepo: reviewRepo, assetRepo: assetRepo}
+func NewReviewHandler(reviewRepo repository.ReviewRepository, assetRepo repository.AssetRepository, activitySvc *service.ActivityService) *ReviewHandler {
+	return &ReviewHandler{reviewRepo: reviewRepo, assetRepo: assetRepo, activitySvc: activitySvc}
 }
 
 // Create godoc
@@ -88,6 +90,10 @@ func (h *ReviewHandler) Create(c *gin.Context) {
 	}
 
 	go h.assetRepo.UpdateAvgRating(context.Background(), assetID)
+
+	if h.activitySvc != nil {
+		h.activitySvc.Record(c.Request.Context(), uid, "rate", &assetID)
+	}
 
 	middleware.RespondCreated(c, review)
 }
