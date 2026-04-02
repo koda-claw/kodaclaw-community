@@ -28,7 +28,7 @@ jobs:
           GOOS: linux
           GOARCH: amd64
           CGO_ENABLED: 0
-        run: go build -ldflags="-s -w" -o kc-server ./cmd/server/
+        run: go build -ldflags="-s -w -X main.Version=$(git describe --tags --always)" -o kc-server ./cmd/server/
 
       - name: Get current commit SHA
         id: sha

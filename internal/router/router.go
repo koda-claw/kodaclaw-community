@@ -11,6 +11,7 @@ import (
 
 func Setup(
 	engine *gin.Engine,
+	version string,
 	authH *handler.AuthHandler,
 	assetH *handler.AssetHandler,
 	reviewH *handler.ReviewHandler,
@@ -41,7 +42,7 @@ func Setup(
 	engine.StaticFile("/openapi.yaml", "./docs/openapi.yaml")
 
 	engine.GET("/api/v1/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok", "version": "0.3.0"})
+		c.JSON(200, gin.H{"status": "ok", "version": version})
 	})
 
 	// Bootstrap entry: /skill.md returns koda-community SKILL.md content

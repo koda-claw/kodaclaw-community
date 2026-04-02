@@ -1,5 +1,5 @@
 // @title KodaClaw Community API
-// @version 0.2.0
+// @version dev
 // @description 全球首个 Agent 资产共享平台
 // @host community.ai-koda.com
 // @BasePath /api/v1
@@ -31,6 +31,9 @@ import (
 	"github.com/vanzheng/kodaclaw-community/internal/router"
 	"github.com/vanzheng/kodaclaw-community/internal/service"
 )
+
+// Version is set via -ldflags at build time
+var Version = "dev"
 
 func main() {
 	cfg, err := config.Load()
@@ -144,7 +147,7 @@ func main() {
 	}
 
 	engine := gin.Default()
-	router.Setup(engine, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, uploadLimiter, publicH, githubH, bindH, relayH, webhookH)
+	router.Setup(engine, Version, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, uploadLimiter, publicH, githubH, bindH, relayH, webhookH)
 
 	srv := &http.Server{
 		Addr:    cfg.Port,
