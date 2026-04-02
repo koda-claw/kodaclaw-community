@@ -149,6 +149,25 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 		`ALTER TABLE users ADD COLUMN IF NOT EXISTS claimed_by UUID REFERENCES users(id)`,
 		`ALTER TABLE users ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMP`,
 	}
+	// Bind migration columns (added in v0.6.0)
+	bindMigrations := []string{
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS bind_code VARCHAR(36)`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS observer_id UUID REFERENCES users(id)`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS bound_at TIMESTAMP`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS github_id BIGINT`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS github_username VARCHAR(100)`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS claim_token VARCHAR(36)`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS claim_expires_at TIMESTAMP`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS claimed_by UUID REFERENCES users(id)`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMP`,
+	}
+	for _, sql := range bindMigrations {
+		if _, err := pool.Exec(ctx, sql); err != nil {
+			t.Fatalf("bind migration failed: %v\nSQL: %s", err, sql)
+		}
+	}
+
 	for _, sql := range migrations {
 		if _, err := pool.Exec(ctx, sql); err != nil {
 			t.Fatalf("migration failed: %v", err)
