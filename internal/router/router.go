@@ -28,14 +28,15 @@ func Setup(
 	engine.Use(middleware.ErrorHandler())
 
 	// Static frontend
+	// Bind page (must be before StaticFile to avoid route conflict)
+	engine.GET("/bind", bindH.GetBindPage)
+	engine.GET("/claim", func(c *gin.Context) { c.Redirect(302, "/bind?token="+c.Query("token")) })
+
+	// Static frontend
 	engine.StaticFile("/", "./internal/static/index.html")
 	engine.Static("/css", "./internal/static/css")
 	engine.Static("/js", "./internal/static/js")
 	engine.StaticFile("/openapi.yaml", "./docs/openapi.yaml")
-
-	// 绑定页面（无需认证，直接返回 HTML）
-	engine.GET("/bind", bindH.GetBindPage)
-	engine.GET("/claim", func(c *gin.Context) { c.Redirect(302, "/bind?token="+c.Query("token")) })
 
 	engine.GET("/api/v1/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok", "version": "0.3.0"})
