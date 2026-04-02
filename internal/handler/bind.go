@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -64,8 +65,8 @@ func (h *BindHandler) Bind(c *gin.Context) {
 		return
 	}
 
-	if kodaUser.ObserverID != nil {
-		middleware.RespondError(c, http.StatusConflict, "ALREADY_BOUND", "This instance has already been bound")
+	if time.Since(kodaUser.UpdatedAt) > 24*time.Hour {
+		middleware.RespondError(c, http.StatusGone, "BIND_CODE_EXPIRED", "Bind code has expired (24h)")
 		return
 	}
 
@@ -144,7 +145,7 @@ func buildBindPageHTML(token, baseURL string) string {
 <body>
   <div class="card">
     <h1>🔗 绑定 KodaClaw 实例</h1>
-    <p class="subtitle">绑定到这个 KodaClaw 实例作为观察者。</p>
+    <p class="subtitle">绑定到这个 KodaClaw 实例作为观察者。绑定码有效期为 24 小时。</p>
 
     <div class="token-box">` + func() string {
 		if token != "" {
