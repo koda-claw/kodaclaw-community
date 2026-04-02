@@ -148,6 +148,25 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 		`ALTER TABLE users ADD COLUMN IF NOT EXISTS claim_expires_at TIMESTAMP`,
 		`ALTER TABLE users ADD COLUMN IF NOT EXISTS claimed_by UUID REFERENCES users(id)`,
 		`ALTER TABLE users ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMP`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS bind_code VARCHAR(36)`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS observer_id UUID REFERENCES users(id)`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS bound_at TIMESTAMP`,
+		`CREATE TABLE IF NOT EXISTS audit_logs (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			operator_id UUID NOT NULL,
+			action VARCHAR(100) NOT NULL,
+			target_type VARCHAR(50) NOT NULL,
+			target_id UUID NOT NULL,
+			detail TEXT NOT NULL DEFAULT '',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE TABLE IF NOT EXISTS user_activities (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			user_id UUID NOT NULL,
+			activity_type VARCHAR(50) NOT NULL,
+			asset_id UUID,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
 	}
 	for _, sql := range migrations {
 		if _, err := pool.Exec(ctx, sql); err != nil {
@@ -156,6 +175,8 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 	}
 
 	// Clean up test data (order matters for FK)
+	pool.Exec(ctx, "DELETE FROM audit_logs")
+	pool.Exec(ctx, "DELETE FROM user_activities")
 	pool.Exec(ctx, "DELETE FROM notifications")
 	pool.Exec(ctx, "DELETE FROM reviews")
 	pool.Exec(ctx, "DELETE FROM asset_downloads")
