@@ -28,7 +28,7 @@ window.addEventListener('hashchange', () => { setTimeout(refreshIcons, 100); });
           <a href="#/"><i data-lucide="home" class="inline-icon"></i> 首页</a>
           <a href="#/assets"><i data-lucide="store" class="inline-icon"></i> 资产市场</a>
           ${loggedIn
-            ? `${Auth.isAdmin() ? `<a href="#/dashboard" class="nav-admin-link"><i data-lucide="bar-chart-3" class="inline-icon"></i> 控制台</a>` : ''}
+            ? `${Auth.isAdmin() ? `<a href="#/dashboard" class="nav-admin-link"><i data-lucide="bar-chart-3" class="inline-icon"></i> 控制台</a>` : (localStorage.getItem('observed_instance_admin') === 'true' ? `<a href="#/dashboard" class="nav-admin-link"><i data-lucide="bar-chart-3" class="inline-icon"></i> 控制台</a>` : '')}
                <a href="#/me"><i data-lucide="circle-user" class="inline-icon"></i> 个人中心</a>
                <span class="nav-user">@${Components.escHtml(user?.username || '')}</span>
                <button id="btn-logout" class="btn btn-sm btn-outline">退出</button>`

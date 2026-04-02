@@ -102,6 +102,8 @@ const UserPage = (() => {
     try {
       const data = await API.get('/users/me/observed');
       const instances = data.instances || [];
+      const hasAdminInstance = instances.some(i => i.is_admin);
+      localStorage.setItem("observed_instance_admin", hasAdminInstance ? "true" : "false");
 
       let html = `
         <div class="page-header">
