@@ -126,6 +126,8 @@ func (h *AdminHandler) Approve(c *gin.Context) {
 
 	if err := h.assetRepo.UpdateStatus(c.Request.Context(), id, model.AssetStatusApproved, nil); err != nil {
 		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to approve asset")
+		return
+	}
 
 	// Also approve the current version (first-time approval flow)
 	if asset.CurrentVersion != nil && *asset.CurrentVersion != "" {
@@ -137,8 +139,6 @@ func (h *AdminHandler) Approve(c *gin.Context) {
 				_ = h.assetRepo.UpdateReadme(c.Request.Context(), id, currentVer.Readme, currentVer.SkillContent)
 			}
 		}
-	}
-		return
 	}
 
 	msg := fmt.Sprintf("您的资产 %s 已通过审核", asset.Name)
