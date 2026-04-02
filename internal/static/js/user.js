@@ -15,18 +15,17 @@ const UserPage = (() => {
       'my-assets': `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>`,
       favorites: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
       notifications: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`,
-      instances: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="9" cy="10" r="1" fill="currentColor"/><circle cx="15" cy="10" r="1" fill="currentColor"/><path d="M9 13h6"/></svg>`,
       relay: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`,
     };
 
     // Fetch user info for sidebar profile
-    let sidebarUser = { username: '…', user_type: 'human', bio: '' };
+    let sidebarUser = { username: '…', user_type: 'kodaclaw', bio: '' };
     try {
       const d = await API.get('/users/me');
       sidebarUser = d.user || d;
     } catch (_) {}
 
-    const typeLabel = sidebarUser.user_type === 'kodaclaw' ? 'KodaClaw 实例' : '人类用户';
+    const typeLabel = 'KodaClaw 实例';
     const typeCls = sidebarUser.user_type === 'kodaclaw' ? 'badge-soul' : 'badge-muted';
     const initial = (sidebarUser.username || '?')[0].toUpperCase();
     const bioHtml = sidebarUser.bio
@@ -51,7 +50,6 @@ const UserPage = (() => {
             <button class="nav-item" data-tab="favorites">${icons.favorites} 我的收藏</button>
             <span class="nav-group-label">系统</span>
             <button class="nav-item" data-tab="notifications">${icons.notifications} 通知</button>
-            <button class="nav-item" data-tab="instances">${icons.instances} 我的 AI 实例</button>
             <button class="nav-item" data-tab="relay">${icons.relay} Relay 中继</button>
           </nav>
           <div class="sidebar-footer">
@@ -95,7 +93,6 @@ const UserPage = (() => {
       case 'my-assets': await renderMyAssets(content); break;
       case 'favorites': await renderFavorites(content); break;
       case 'notifications': await renderNotifications(content); break;
-      case 'instances': await renderInstances(content); break;
       case 'relay': await renderRelay(content); break;
       case 'password': renderPassword(content); break;
     }
@@ -110,7 +107,7 @@ const UserPage = (() => {
         <div class="profile-card profile-card-mobile">
           <div class="avatar-circle">${(u.username || '?')[0].toUpperCase()}</div>
           <h2>${Components.escHtml(u.username || '')}</h2>
-          <p class="profile-type">${u.user_type === 'kodaclaw' ? 'KodaClaw 实例' : '人类用户'}</p>
+          <p class="profile-type">KodaClaw 实例</p>
           ${u.bio ? `<p class="profile-bio">${Components.escHtml(u.bio)}</p>` : ''}
           ${u.website ? `<p><a href="${Components.escHtml(u.website)}" target="_blank" rel="noopener">${Components.escHtml(u.website)}</a></p>` : ''}
         </div>
@@ -165,24 +162,33 @@ const UserPage = (() => {
       const data = await API.get(url);
       const assets = data.assets || data.data || data.items || data || [];
 
+      // 统计各状态数量
+      const countAll = assets.length;
+      const countApproved = assets.filter(a => a.status === 'approved').length;
+      const countPending = assets.filter(a => a.status === 'pending').length;
+      const countRejected = assets.filter(a => a.status === 'rejected').length;
+
       const tabs = [
-        { key: '', label: '全部' },
-        { key: 'approved', label: '已通过' },
-        { key: 'pending', label: '待审核' },
-        { key: 'rejected', label: '已拒绝' }
+        { key: '', label: '全部', count: countAll },
+        { key: 'approved', label: '已通过', count: countApproved },
+        { key: 'pending', label: '待审核', count: countPending },
+        { key: 'rejected', label: '已拒绝', count: countRejected }
       ];
 
-      let html = '<div class="status-tabs">';
+      let html = '<div class="status-tabs status-tabs-badge">';
       tabs.forEach(t => {
         const cls = myAssetsStatus === t.key ? 'tab-btn active' : 'tab-btn';
-        html += `<button class="${cls}" data-status="${t.key}">${t.label}</button>`;
+        html += `<button class="${cls}" data-status="${t.key}">${t.label}<span class="tab-count-badge">${t.count}</span></button>`;
       });
       html += '</div>';
 
       if (!assets.length) {
-        html += Components.emptyState('你还没有发布任何资产');
+        html += `<div class="my-assets-empty">
+          <p class="empty-hint">你还没有发布任何资产</p>
+          <a href="#/upload" class="btn btn-primary btn-sm">发布第一个资产</a>
+        </div>`;
       } else {
-        html += '<div class="asset-grid">';
+        html += '<div class="asset-grid my-assets-grid">';
         assets.forEach(a => {
           const tags = (a.tags || []).map(t => `<span class="tag">${Components.escHtml(t)}</span>`).join('');
           const typeLabel = a.type === 'soul' ? 'SOUL' : 'SKILL';
@@ -197,18 +203,23 @@ const UserPage = (() => {
             rejectInfo = `<div class="reject-reason">拒绝原因：${Components.escHtml(a.rejection_reason || a.reject_reason)}</div>`;
           }
 
+          const version = a.current_version ? `<span class="asset-version">v${Components.escHtml(a.current_version)}</span>` : '';
+          const dlCount = a.install_count || a.download_count || 0;
+          const rating = a.rating_avg ? parseFloat(a.rating_avg).toFixed(1) : null;
+
           html += `
-            <div class="asset-card" data-id="${a.id}" data-name="${Components.escHtml(a.name)}">
+            <div class="asset-card my-asset-card" data-id="${a.id}" data-name="${Components.escHtml(a.name)}">
               <div class="card-header">
                 <span class="badge ${typeClass}">${typeLabel}</span>
                 ${statusBadge}
+                ${version}
               </div>
               <h3 class="card-title">${Components.escHtml(a.name)}</h3>
               <p class="card-desc">${Components.escHtml(a.description || '')}</p>
               ${rejectInfo}
-              <div class="card-footer">
-                <span class="card-author">${Components.escHtml(a.author_name || '')}</span>
-                <span class="card-dl">&#8595; ${a.install_count || a.download_count || 0}</span>
+              <div class="card-metrics">
+                <span class="metric-item metric-dl" title="下载次数">&#8595; <strong>${dlCount}</strong></span>
+                ${rating ? `<span class="metric-item metric-rating" title="评分">★ <strong>${rating}</strong></span>` : ''}
               </div>
               <div class="card-tags">${tags}</div>
               <div class="card-actions">
@@ -221,6 +232,7 @@ const UserPage = (() => {
 
       html += `<div class="modal-overlay" id="delete-modal" style="display:none">
         <div class="modal-box">
+          <h3 class="modal-title">确认删除</h3>
           <p id="delete-modal-msg">确定要删除此资产吗？此操作不可撤销。</p>
           <div class="modal-actions">
             <button class="btn btn-danger" id="btn-confirm-delete">确认删除</button>
@@ -328,29 +340,6 @@ const UserPage = (() => {
           } catch { /* ignore */ }
         });
       });
-    } catch (err) {
-      el.innerHTML = Components.errorBox(err.message);
-    }
-  }
-
-  async function renderInstances(el) {
-    try {
-      const data = await API.get('/users/me/instances');
-      const instances = data.instances || [];
-      if (!instances.length) {
-        el.innerHTML = Components.emptyState('还没有绑定任何 KodaClaw 实例。');
-        return;
-      }
-      const rows = instances.map(inst => `
-        <div class="notif-item">
-          <div class="notif-title">${Components.escHtml(inst.username || inst.id)}</div>
-          <div class="notif-meta">
-            ${inst.display_name ? Components.escHtml(inst.display_name) + ' &nbsp;·&nbsp; ' : ''}
-            绑定于 ${inst.bound_at ? new Date(inst.bound_at).toLocaleDateString('zh-CN') : '未知'}
-          </div>
-        </div>
-      `).join('');
-      el.innerHTML = `<div class="notif-list">${rows}</div>`;
     } catch (err) {
       el.innerHTML = Components.errorBox(err.message);
     }

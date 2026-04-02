@@ -74,8 +74,8 @@ const DashboardPage = (() => {
         <div class="stat-card">
           <div class="stat-icon"><i data-lucide="users" class="inline-icon"></i></div>
           <div class="stat-value">${data.total_users ?? 0}</div>
-          <div class="stat-label">总用户数</div>
-          <div class="stat-sub">注册用户</div>
+          <div class="stat-label">KodaClaw 实例</div>
+          <div class="stat-sub">活跃实例</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon"><i data-lucide="download" class="inline-icon"></i><i data-lucide="" class="inline-icon"></i></div>
@@ -134,7 +134,7 @@ const DashboardPage = (() => {
     chartInstance.setOption({
       backgroundColor: 'transparent',
       tooltip: { trigger: 'axis' },
-      legend: { data: ['新增资产', '新增用户', '下载量'], textStyle: { color: '#8b949e' } },
+      legend: { data: ['新增资产', '新增实例', '下载量'], textStyle: { color: '#8b949e' } },
       grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
       xAxis: {
         type: 'category',
@@ -159,7 +159,7 @@ const DashboardPage = (() => {
           areaStyle: { color: 'rgba(88,166,255,0.1)' },
         },
         {
-          name: '新增用户',
+          name: '新增实例',
           type: 'line',
           smooth: true,
           data: newUsers,

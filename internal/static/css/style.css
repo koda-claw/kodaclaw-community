@@ -1806,3 +1806,91 @@ a:hover { color: var(--accent-hover); }
     display: block;
   }
 }
+
+/* ── My Assets UI Enhancements ── */
+.status-tabs-badge .tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.tab-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4em;
+  padding: 0 0.4em;
+  height: 1.4em;
+  border-radius: 999px;
+  background: rgba(99,102,241,0.15);
+  color: var(--text-muted);
+  font-size: 0.75em;
+  font-weight: 600;
+  line-height: 1;
+}
+.tab-btn.active .tab-count-badge {
+  background: rgba(99,102,241,0.3);
+  color: var(--accent);
+}
+.my-assets-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 3rem 1rem;
+}
+.my-assets-empty .empty-hint {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+.my-asset-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.my-asset-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+}
+.asset-version {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.06);
+  border-radius: 4px;
+  padding: 0.1em 0.45em;
+  margin-left: auto;
+}
+.card-metrics {
+  display: flex;
+  gap: 1rem;
+  margin: 0.5rem 0 0.25rem;
+}
+.metric-item {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+.metric-item strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.metric-rating strong {
+  color: #f0a130;
+}
+.modal-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+  color: var(--text-primary);
+}
+/* Auth page simplified */
+.auth-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  text-align: center;
+  margin: 1rem 0 0.5rem;
+  color: var(--text-primary);
+}
+.auth-hint {
+  font-size: 0.83rem;
+  color: var(--text-muted);
+  text-align: center;
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
