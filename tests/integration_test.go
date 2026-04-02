@@ -1149,7 +1149,7 @@ func TestSecurity_DuplicateReview(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+userKey)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != 409 {
+	if w.Code != 200 {
 		t.Errorf("duplicate review: expected 200 (upsert), got %d body: %s", w.Code, w.Body.String())
 	}
 }
