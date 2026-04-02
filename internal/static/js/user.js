@@ -388,6 +388,149 @@ const UserPage = (() => {
       setTimeout(() => toast.remove(), 3000);
     }
 
+    function showCreateKeyModal(instId, onCreated) {
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.style.display = 'flex';
+      overlay.innerHTML = `
+        <div class="modal-box relay-creation-modal">
+          <h3 class="section-title">添加 Webhook 密钥</h3>
+          <div class="field">
+            <label>密钥名称</label>
+            <input type="text" id="key-name-input" placeholder="例如: 生产环境" required />
+          </div>
+          <div class="field">
+            <label>过期时间（可选）</label>
+            <input type="date" id="key-expires-input" />
+          </div>
+          <div id="key-create-err"></div>
+          <div class="modal-actions">
+            <button class="btn btn-primary" id="btn-key-create-confirm">创建</button>
+            <button class="btn btn-outline" id="btn-key-create-cancel">取消</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+
+      overlay.querySelector('#btn-key-create-cancel').addEventListener('click', () => overlay.remove());
+      overlay.querySelector('#btn-key-create-confirm').addEventListener('click', async () => {
+        const keyName = overlay.querySelector('#key-name-input').value.trim();
+        const expiresAt = overlay.querySelector('#key-expires-input').value;
+        const errEl = overlay.querySelector('#key-create-err');
+        if (!keyName) { errEl.innerHTML = Components.errorBox('请输入密钥名称'); return; }
+        const body = { keyName };
+        if (expiresAt) body.expiresAt = expiresAt;
+        try {
+          const result = await API.createRelayKey(instId, body);
+          overlay.remove();
+          showNewKeyModal(result, onCreated);
+        } catch (err) {
+          errEl.innerHTML = Components.errorBox(err.message);
+        }
+      });
+    }
+
+    function showNewKeyModal(key, onClose) {
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.style.display = 'flex';
+      overlay.innerHTML = `
+        <div class="modal-box relay-creation-modal">
+          <h3 class="section-title">密钥已创建</h3>
+          <p class="relay-creation-modal warning">⚠ 密钥值仅显示一次，请立即保存！</p>
+          <div class="secret-display">
+            <div class="label">密钥名称</div>
+            <div>${Components.escHtml(key.keyName || '')}</div>
+            <div class="label" style="margin-top:0.6rem">密钥值</div>
+            <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+              <span style="word-break:break-all">${Components.escHtml(key.keyValue || '')}</span>
+              ${relayCopyBtn(key.keyValue || '', '复制')}
+            </div>
+          </div>
+          <p style="font-size:0.85rem;color:var(--text-muted,#94a3b8)">使用此密钥作为 HMAC 签名的 secret，在 Webhook 请求头携带 X-Relay-Signature。</p>
+          <div class="modal-actions">
+            <button class="btn btn-outline" id="btn-newkey-close">关闭</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      setupRelayCopyBtns(overlay);
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+      overlay.querySelector('#btn-newkey-close').addEventListener('click', () => {
+        overlay.remove();
+        if (onClose) onClose();
+      });
+    }
+
+    async function loadAndRenderKeys(instId, keysBodyEl, keysCountEl) {
+      keysBodyEl.innerHTML = '<p style="color:var(--text-muted,#94a3b8);font-size:0.85rem;padding:0.5rem 0">加载中...</p>';
+      try {
+        const data = await API.listRelayKeys(instId);
+        const keys = Array.isArray(data) ? data : (data.keys || []);
+        if (keysCountEl) keysCountEl.textContent = `Webhook 密钥 (${keys.length})`;
+        if (!keys.length) {
+          keysBodyEl.innerHTML = '<p style="color:var(--text-muted,#94a3b8);font-size:0.85rem;padding:0.5rem 0">暂无密钥，点击"+ 添加"创建</p>';
+          return;
+        }
+        keysBodyEl.innerHTML = keys.map(k => {
+          const now = new Date();
+          const expired = k.expiresAt && new Date(k.expiresAt) < now;
+          let statusCls = 'relay-key-status-active', statusLabel = '活跃';
+          if (expired) { statusCls = 'relay-key-status-expired'; statusLabel = '已过期'; }
+          else if (!k.isActive) { statusCls = 'relay-key-status-disabled'; statusLabel = '已禁用'; }
+          return `
+            <div class="relay-key-card" data-key-id="${Components.escHtml(k.id)}">
+              <div class="relay-key-left">
+                <i data-lucide="key" class="inline-icon" style="color:var(--accent,#8B5CF6)"></i>
+                <span class="relay-key-name">${Components.escHtml(k.keyName || k.id)}</span>
+                <span class="relay-key-status ${statusCls}">${statusLabel}</span>
+              </div>
+              <div class="relay-key-value-wrap">
+                <code class="relay-key-value">${Components.escHtml(k.keyPrefix || '')}...</code>
+                <button class="relay-copy-btn btn-relay-key-copy" data-copy="${Components.escHtml(k.keyPrefix || '')}..." title="复制前缀">
+                  <i data-lucide="copy" class="inline-icon"></i>
+                </button>
+              </div>
+              <div class="relay-key-actions">
+                <button class="relay-copy-btn btn-relay-key-toggle" data-key-id="${Components.escHtml(k.id)}" data-active="${k.isActive ? '1' : '0'}" title="${k.isActive ? '禁用' : '启用'}">
+                  <i data-lucide="${k.isActive ? 'toggle-right' : 'toggle-left'}" class="inline-icon" style="color:${k.isActive ? '#22c55e' : '#64748b'};font-size:1.3em"></i>
+                </button>
+                <button class="relay-copy-btn btn-relay-key-delete" data-key-id="${Components.escHtml(k.id)}" title="删除密钥">
+                  <i data-lucide="trash-2" class="inline-icon" style="color:#ef4444"></i>
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('');
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        setupRelayCopyBtns(keysBodyEl);
+
+        keysBodyEl.querySelectorAll('.btn-relay-key-toggle').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const keyId = btn.dataset.keyId;
+            const isActive = btn.dataset.active === '1';
+            try {
+              await API.toggleRelayKey(instId, keyId, { isActive: !isActive });
+              loadAndRenderKeys(instId, keysBodyEl, keysCountEl);
+            } catch (err) { showToast('操作失败: ' + err.message); }
+          });
+        });
+
+        keysBodyEl.querySelectorAll('.btn-relay-key-delete').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            if (!confirm('确定删除此密钥？此操作不可撤销。')) return;
+            try {
+              await API.deleteRelayKey(instId, btn.dataset.keyId);
+              loadAndRenderKeys(instId, keysBodyEl, keysCountEl);
+            } catch (err) { showToast('删除失败: ' + err.message); }
+          });
+        });
+      } catch (err) {
+        keysBodyEl.innerHTML = Components.errorBox(err.message);
+      }
+    }
+
     function showCreateModal() {
       const overlay = document.createElement('div');
       overlay.className = 'modal-overlay';
@@ -431,9 +574,12 @@ const UserPage = (() => {
     }
 
     function showCreatedModal(inst) {
+      const sharedSecret = inst.sharedSecret || inst.shared_secret || '';
+      const webhookSecret = inst.webhookSecret || inst.webhook_secret || '';
+      const accountId = inst.accountId || inst.account_id || '';
       const configJson = JSON.stringify({
         relayUrl: 'wss://community.ai-koda.com/ws/relay',
-        sharedSecret: inst.sharedSecret || inst.shared_secret || '',
+        sharedSecret,
       });
       const overlay = document.createElement('div');
       overlay.className = 'modal-overlay';
@@ -441,17 +587,22 @@ const UserPage = (() => {
       overlay.innerHTML = `
         <div class="modal-box relay-creation-modal">
           <h3 class="section-title">实例创建成功</h3>
-          <p class="relay-creation-modal warning">⚠ 共享密钥和 Webhook Secret 仅显示一次，请立即保存！</p>
           <div class="secret-display">
             <div class="label">Account ID</div>
-            <div>${Components.escHtml(inst.accountId || inst.account_id || '')}&nbsp;${relayCopyBtn(inst.accountId || inst.account_id || '', '复制')}</div>
-            <div class="label" style="margin-top:0.6rem">Shared Secret</div>
-            <div>${Components.escHtml(inst.sharedSecret || inst.shared_secret || '')}&nbsp;${relayCopyBtn(inst.sharedSecret || inst.shared_secret || '', '复制')}</div>
-            <div class="label" style="margin-top:0.6rem">Webhook Secret</div>
-            <div>${Components.escHtml(inst.webhookSecret || inst.webhook_secret || '')}&nbsp;${relayCopyBtn(inst.webhookSecret || inst.webhook_secret || '', '复制')}</div>
+            <div>${Components.escHtml(accountId)}&nbsp;${relayCopyBtn(accountId, '复制')}</div>
+            <div style="margin-top:0.8rem;padding-top:0.8rem;border-top:1px dashed rgba(255,255,255,0.1)">
+              <div class="label">Shared Secret <span style="font-size:0.75rem;color:#f59e0b">（WebSocket 连接用）</span></div>
+              <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">${Components.escHtml(sharedSecret)}&nbsp;${relayCopyBtn(sharedSecret, '复制')}</div>
+              <p style="font-size:0.75rem;color:#f59e0b;margin:0.25rem 0 0">⚠ 仅显示一次，请立即保存</p>
+            </div>
+            ${webhookSecret ? `
+            <div style="margin-top:0.8rem;padding-top:0.8rem;border-top:1px dashed rgba(255,255,255,0.1)">
+              <div class="label">Webhook Secret <span style="font-size:0.75rem;color:#f59e0b">（首个 Webhook 密钥）</span></div>
+              <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">${Components.escHtml(webhookSecret)}&nbsp;${relayCopyBtn(webhookSecret, '复制')}</div>
+              <p style="font-size:0.75rem;color:#f59e0b;margin:0.25rem 0 0">⚠ 仅显示一次，请立即保存</p>
+            </div>` : ''}
           </div>
-          <p style="font-size:0.85rem;color:var(--text-muted,#94a3b8)">将以上信息填入 KodaClaw 的 Relay 频道配置中。</p>
-          <p style="font-size:0.85rem;color:var(--text-muted,#94a3b8);margin-top:0.3rem">Webhook Secret 用于 HMAC 签名验证，调用 Webhook 时需在请求头中携带 <code>X-Relay-Signature</code>。</p>
+          <p style="font-size:0.85rem;color:var(--text-muted,#94a3b8);margin-top:0.5rem">将以上信息填入 KodaClaw 的 Relay 频道配置中。</p>
           <div class="modal-actions">
             <button class="btn btn-primary" id="btn-copy-config">复制配置 JSON</button>
             <button class="btn btn-outline" id="btn-created-close">关闭</button>
@@ -460,6 +611,7 @@ const UserPage = (() => {
       `;
       document.body.appendChild(overlay);
       setupRelayCopyBtns(overlay);
+      if (typeof lucide !== 'undefined') lucide.createIcons();
 
       overlay.querySelector('#btn-copy-config').addEventListener('click', () => {
         navigator.clipboard.writeText(configJson).then(() => {
@@ -620,79 +772,6 @@ const UserPage = (() => {
       });
     }
 
-    function showRegenerateWebhookSecretModal(inst) {
-      const name = inst.instanceName || inst.instance_name || inst.id;
-      const overlay = document.createElement('div');
-      overlay.className = 'modal-overlay';
-      overlay.style.display = 'flex';
-      overlay.innerHTML = `
-        <div class="modal-box">
-          <p>重新生成 Webhook 密钥后，旧的密钥将<strong>立即失效</strong>，使用旧密钥的签名请求将被拒绝。确定吗？</p>
-          <p style="font-size:0.85rem;color:var(--text-muted,#94a3b8)">实例: ${Components.escHtml(name)}</p>
-          <div class="modal-actions">
-            <button class="btn btn-danger" id="btn-regen-wsec-confirm">确认重新生成</button>
-            <button class="btn btn-outline" id="btn-regen-wsec-cancel">取消</button>
-          </div>
-        </div>
-      `;
-      document.body.appendChild(overlay);
-
-      overlay.querySelector('#btn-regen-wsec-cancel').addEventListener('click', () => overlay.remove());
-      overlay.querySelector('#btn-regen-wsec-confirm').addEventListener('click', async () => {
-        const btn = overlay.querySelector('#btn-regen-wsec-confirm');
-        btn.disabled = true;
-        btn.textContent = '生成中...';
-        try {
-          const result = await API.regenerateRelayWebhookSecret(inst.id);
-          overlay.remove();
-          showNewWebhookSecretModal(result);
-        } catch (err) {
-          alert('生成失败: ' + err.message);
-          btn.disabled = false;
-          btn.textContent = '确认重新生成';
-        }
-      });
-    }
-
-    function showNewWebhookSecretModal(result) {
-      const webhookSecret = result.webhookSecret || result.webhook_secret || '';
-      const instId = result.id || '';
-      const overlay = document.createElement('div');
-      overlay.className = 'modal-overlay';
-      overlay.style.display = 'flex';
-      overlay.innerHTML = `
-        <div class="modal-box relay-creation-modal">
-          <h3 class="section-title">新 Webhook 密钥已生成</h3>
-          <p class="relay-creation-modal warning">⚠ 新 Webhook Secret 仅显示一次，请立即保存！</p>
-          <div class="secret-display">
-            <div class="label">新 Webhook Secret</div>
-            <div>${Components.escHtml(webhookSecret)}&nbsp;${relayCopyBtn(webhookSecret, '复制')}</div>
-          </div>
-          <p style="font-size:0.85rem;color:var(--text-muted,#94a3b8)">请更新所有使用此 Webhook 的外部系统，使用新的密钥生成签名。</p>
-          <div class="modal-actions">
-            <button class="btn btn-outline" id="btn-new-wsec-close">关闭</button>
-          </div>
-        </div>
-      `;
-      document.body.appendChild(overlay);
-      setupRelayCopyBtns(overlay);
-
-      overlay.querySelector('#btn-new-wsec-close').addEventListener('click', () => {
-        overlay.remove();
-        // 更新卡片上的遮罩显示
-        const display = document.querySelector(`#wsec-display-${instId}`);
-        if (display) {
-          display.textContent = 'whsec-****';
-          const toggleBtn = document.querySelector(`.btn-relay-wsec-toggle[data-id="${instId}"]`);
-          if (toggleBtn) {
-            toggleBtn.dataset.secret = webhookSecret;
-            toggleBtn.textContent = '显示';
-          }
-        }
-        refresh();
-      });
-    }
-
     try {
       const instances = await API.getRelayInstances();
       const list = Array.isArray(instances) ? instances : (instances.instances || []);
@@ -718,46 +797,106 @@ const UserPage = (() => {
           const statusLabel = isOnline ? '在线' : '离线';
           const configJson = JSON.stringify({ relayUrl: 'wss://community.ai-koda.com/ws/relay', accountId: accountID });
           const webhookUrl = `https://community.ai-koda.com/api/v1/webhook/incoming/${inst.id}`;
-          const webhookSecret = inst.webhookSecret || inst.webhook_secret || '';
-          const curlExample = `timestamp=$(date +%s)\nbody='{"text":"hello"}'\nsig=$(printf '%s' "$timestamp.$body" | openssl dgst -sha256 -hmac "YOUR_WEBHOOK_SECRET" | awk '{print $2}')\ncurl -X POST "${webhookUrl}" \\\n  -H "Content-Type: application/json" \\\n  -H "X-Relay-Timestamp: $timestamp" \\\n  -H "X-Relay-Signature: $sig" \\\n  -d "$body"`;
-          const maskedSecret = webhookSecret ? 'whsec-****' : '未设置';
+          const curlExample = `timestamp=$(date +%s)
+body='{"text":"hello"}'
+sig=$(printf '%s' "$timestamp.$body" | openssl dgst -sha256 -hmac "YOUR_WEBHOOK_KEY" | awk '{print $2}')
+curl -X POST "${webhookUrl}" \\
+  -H "Content-Type: application/json" \\
+  -H "X-Relay-Timestamp: $timestamp" \\
+  -H "X-Relay-Signature: $sig" \\
+  -d "$body"`;
+          const safeId = Components.escHtml(inst.id);
 
           html += `
-            <div class="relay-card">
-              <div class="relay-card-header">
-                <span class="relay-card-name">${Components.escHtml(name)}</span>
-                <span class="${statusClass}">● ${statusLabel}</span>
+            <div class="relay-card" data-inst-id="${safeId}">
+              <!-- Section 1: 连接状态 -->
+              <div class="relay-section">
+                <div class="relay-section-header" data-target="conn-${safeId}">
+                  <span class="relay-section-title">
+                    <i data-lucide="plug" class="inline-icon"></i> 连接
+                  </span>
+                  <i data-lucide="chevron-down" class="inline-icon chevron"></i>
+                </div>
+                <div class="relay-section-body" id="conn-${safeId}">
+                  <div class="relay-card-header">
+                    <span class="relay-card-name">${Components.escHtml(name)}</span>
+                    <span class="${statusClass}">● ${statusLabel}</span>
+                  </div>
+                  <div class="relay-card-meta">
+                    <span>Account ID: <code>${Components.escHtml(accountID)}</code></span>
+                    <button class="relay-copy-btn" data-copy="${Components.escHtml(accountID)}" title="复制 Account ID">
+                      <i data-lucide="copy" class="inline-icon"></i> 复制
+                    </button>
+                  </div>
+                  <div class="relay-card-meta">
+                    ${lastConn ? `<span>最近连接: ${new Date(lastConn).toLocaleString('zh-CN')}</span>` : '<span>尚未连接</span>'}
+                    &nbsp;·&nbsp;
+                    <span>创建于: ${createdAt ? new Date(createdAt).toLocaleDateString('zh-CN') : '未知'}</span>
+                  </div>
+                  <div class="relay-card-actions">
+                    <button class="btn btn-sm btn-relay-test-conn" data-id="${safeId}">
+                      <i data-lucide="radio" class="inline-icon"></i> 测试连接
+                    </button>
+                    <button class="btn btn-sm btn-relay-copy-config" data-config="${Components.escHtml(configJson)}">
+                      <i data-lucide="copy" class="inline-icon"></i> 复制配置
+                    </button>
+                    <button class="btn btn-sm btn-relay-regen" data-id="${safeId}">重新生成密钥</button>
+                    <button class="btn btn-sm btn-danger btn-relay-delete" data-id="${safeId}" data-name="${Components.escHtml(name)}">
+                      <i data-lucide="trash-2" class="inline-icon"></i> 删除
+                    </button>
+                  </div>
+                </div>
               </div>
-              <div class="relay-card-meta">
-                <span>Account ID: <code>${Components.escHtml(accountID)}</code></span>
-                <button class="relay-copy-btn" data-copy="${Components.escHtml(accountID)}" title="复制 Account ID">复制 ID</button>
+
+              <!-- Section 2: Webhook 端点 -->
+              <div class="relay-section">
+                <div class="relay-section-header" data-target="wh-${safeId}">
+                  <span class="relay-section-title">
+                    <i data-lucide="webhook" class="inline-icon"></i> Webhook 端点
+                  </span>
+                  <i data-lucide="chevron-down" class="inline-icon chevron"></i>
+                </div>
+                <div class="relay-section-body" id="wh-${safeId}">
+                  <div class="relay-card-meta" style="flex-direction:column;align-items:flex-start;gap:0.3rem">
+                    <div style="display:flex;align-items:flex-start;gap:0.5rem;width:100%">
+                      <code style="word-break:break-all;flex:1;font-size:0.82rem">${Components.escHtml(webhookUrl)}</code>
+                      <button class="relay-copy-btn" data-copy="${Components.escHtml(webhookUrl)}" title="复制 Webhook URL" style="flex-shrink:0">
+                        <i data-lucide="copy" class="inline-icon"></i>
+                      </button>
+                    </div>
+                    <span style="font-size:0.8rem;color:var(--text-muted,#94a3b8)">向此 URL 发送任意 JSON，需携带 HMAC 签名验证</span>
+                  </div>
+                  <div style="margin-top:0.5rem">
+                    <button class="btn btn-sm btn-relay-curl-toggle" data-id="${safeId}">
+                      <i data-lucide="terminal" class="inline-icon"></i> curl 示例
+                    </button>
+                    <pre id="curl-${safeId}" style="display:none;margin:0.5rem 0 0;font-size:0.78rem;background:var(--surface-alt,#1e293b);color:#e2e8f0;padding:0.6rem;border-radius:0.4rem;overflow-x:auto;white-space:pre-wrap">${Components.escHtml(curlExample)}</pre>
+                  </div>
+                  <div class="relay-card-actions">
+                    <button class="btn btn-sm btn-relay-test-webhook" data-id="${safeId}"${isOnline ? '' : ' disabled'}>
+                      <i data-lucide="send" class="inline-icon"></i> 发送测试消息
+                    </button>
+                  </div>
+                </div>
               </div>
-              <div class="relay-card-meta">
-                ${lastConn ? `<span>最近连接: ${new Date(lastConn).toLocaleString('zh-CN')}</span>` : '<span>尚未连接</span>'}
-                &nbsp;·&nbsp;
-                <span>创建于: ${createdAt ? new Date(createdAt).toLocaleDateString('zh-CN') : '未知'}</span>
-              </div>
-              <div class="relay-card-meta">
-                <span>Webhook URL: <code>${webhookUrl}</code></span>
-                <button class="relay-copy-btn" data-copy="${webhookUrl}" title="复制 Webhook URL">复制</button>
-              </div>
-              <div class="relay-card-meta">
-                <span>Webhook Secret: <code id="wsec-display-${Components.escHtml(inst.id)}">${maskedSecret}</code></span>
-                <button class="relay-copy-btn" data-copy="${Components.escHtml(webhookSecret)}" title="复制 Webhook Secret">复制</button>
-                <button class="btn-relay-wsec-toggle relay-copy-btn" data-id="${Components.escHtml(inst.id)}" data-secret="${Components.escHtml(webhookSecret)}">显示</button>
-              </div>
-              <div class="relay-card-meta" style="flex-direction:column;align-items:flex-start;gap:0.4rem">
-                <span style="font-size:0.8rem;color:var(--text-muted,#94a3b8)">向此 URL 发送任意 JSON 即可将事件转发到 KodaClaw</span>
-                <button class="btn btn-sm btn-relay-curl-toggle" data-id="${Components.escHtml(inst.id)}">查看 curl 示例</button>
-                <pre id="curl-${Components.escHtml(inst.id)}" style="display:none;margin:0;font-size:0.78rem;background:var(--surface-alt,#1e293b);color:#e2e8f0;padding:0.6rem;border-radius:0.4rem;overflow-x:auto;white-space:pre-wrap">${Components.escHtml(curlExample)}</pre>
-              </div>
-              <div class="relay-card-actions">
-                <button class="btn btn-sm btn-relay-test-conn" data-id="${Components.escHtml(inst.id)}">测试连接</button>
-                <button class="btn btn-sm btn-relay-test-webhook" data-id="${Components.escHtml(inst.id)}"${isOnline ? '' : ' disabled'}>发送测试消息</button>
-                <button class="btn btn-sm btn-relay-copy-config" data-config="${Components.escHtml(configJson)}">复制配置</button>
-                <button class="btn btn-sm btn-relay-regen" data-id="${Components.escHtml(inst.id)}">重新生成密钥</button>
-                <button class="btn btn-sm btn-relay-regen-wsec" data-id="${Components.escHtml(inst.id)}">重新生成 Webhook 密钥</button>
-                <button class="btn btn-sm btn-danger btn-relay-delete" data-id="${Components.escHtml(inst.id)}" data-name="${Components.escHtml(name)}">删除</button>
+
+              <!-- Section 3: 密钥管理 -->
+              <div class="relay-section relay-section-last">
+                <div class="relay-section-header" data-target="keys-${safeId}">
+                  <span class="relay-section-title">
+                    <i data-lucide="key-round" class="inline-icon"></i>
+                    <span class="relay-keys-count" data-inst="${safeId}">Webhook 密钥</span>
+                  </span>
+                  <div style="display:flex;align-items:center;gap:0.5rem">
+                    <button class="btn btn-sm btn-relay-key-add" data-id="${safeId}" style="padding:0.2rem 0.6rem">
+                      <i data-lucide="plus" class="inline-icon"></i> 添加
+                    </button>
+                    <i data-lucide="chevron-down" class="inline-icon chevron"></i>
+                  </div>
+                </div>
+                <div class="relay-section-body" id="keys-${safeId}">
+                  <p style="color:var(--text-muted,#94a3b8);font-size:0.85rem;padding:0.5rem 0">加载中...</p>
+                </div>
               </div>
             </div>
           `;
@@ -768,6 +907,29 @@ const UserPage = (() => {
       el.innerHTML = html;
 
       setupRelayCopyBtns(el);
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+
+      // 折叠面板 toggle
+      el.querySelectorAll('.relay-section-header').forEach(header => {
+        header.addEventListener('click', (e) => {
+          if (e.target.closest('.btn-relay-key-add')) return;
+          const targetId = header.dataset.target;
+          const body = targetId ? el.querySelector(`#${targetId}`) : header.nextElementSibling;
+          const chevron = header.querySelector('.chevron');
+          if (!body) return;
+          const isOpen = body.style.display !== 'none';
+          body.style.display = isOpen ? 'none' : '';
+          if (chevron) chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+        });
+      });
+
+      // 加载每个实例的密钥列表
+      list.forEach(inst => {
+        const safeId = inst.id;
+        const keysBodyEl = el.querySelector(`#keys-${safeId}`);
+        const keysCountEl = el.querySelector(`.relay-keys-count[data-inst="${safeId}"]`);
+        if (keysBodyEl) loadAndRenderKeys(safeId, keysBodyEl, keysCountEl);
+      });
 
       el.querySelector('#btn-relay-create').addEventListener('click', showCreateModal);
 
@@ -801,22 +963,17 @@ const UserPage = (() => {
       el.querySelectorAll('.btn-relay-curl-toggle').forEach(btn => {
         btn.addEventListener('click', () => {
           const pre = el.querySelector(`#curl-${btn.dataset.id}`);
-          if (pre.style.display === 'none') {
-            pre.style.display = 'block';
-            btn.textContent = '收起示例';
-          } else {
-            pre.style.display = 'none';
-            btn.textContent = '查看 curl 示例';
-          }
+          if (!pre) return;
+          pre.style.display = pre.style.display === 'none' ? 'block' : 'none';
         });
       });
 
       el.querySelectorAll('.btn-relay-copy-config').forEach(btn => {
         btn.addEventListener('click', () => {
           navigator.clipboard.writeText(btn.dataset.config).then(() => {
-            const orig = btn.textContent;
+            const orig = btn.innerHTML;
             btn.textContent = '已复制';
-            setTimeout(() => { btn.textContent = orig; }, 1000);
+            setTimeout(() => { btn.innerHTML = orig; }, 1000);
           });
         });
       });
@@ -828,24 +985,13 @@ const UserPage = (() => {
         });
       });
 
-      el.querySelectorAll('.btn-relay-regen-wsec').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const inst = list.find(i => i.id === btn.dataset.id);
-          if (inst) showRegenerateWebhookSecretModal(inst);
-        });
-      });
-
-      el.querySelectorAll('.btn-relay-wsec-toggle').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const display = el.querySelector(`#wsec-display-${btn.dataset.id}`);
-          if (!display) return;
-          if (display.textContent === 'whsec-****') {
-            display.textContent = btn.dataset.secret || '未设置';
-            btn.textContent = '隐藏';
-          } else {
-            display.textContent = 'whsec-****';
-            btn.textContent = '显示';
-          }
+      el.querySelectorAll('.btn-relay-key-add').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const instId = btn.dataset.id;
+          const keysBodyEl = el.querySelector(`#keys-${instId}`);
+          const keysCountEl = el.querySelector(`.relay-keys-count[data-inst="${instId}"]`);
+          showCreateKeyModal(instId, () => loadAndRenderKeys(instId, keysBodyEl, keysCountEl));
         });
       });
 

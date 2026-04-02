@@ -26,13 +26,14 @@ const webhookOfflineTTL = 24 * time.Hour
 
 
 type WebhookHandler struct {
-	relayRepo repository.RelayInstanceRepository
-	hub       *relay.Hub
-	rdb       *redis.Client // may be nil
+	relayRepo      repository.RelayInstanceRepository
+	webhookKeyRepo repository.WebhookKeyRepository
+	hub            *relay.Hub
+	rdb            *redis.Client // may be nil
 }
 
-func NewWebhookHandler(relayRepo repository.RelayInstanceRepository, hub *relay.Hub, rdb *redis.Client) *WebhookHandler {
-	return &WebhookHandler{relayRepo: relayRepo, hub: hub, rdb: rdb}
+func NewWebhookHandler(relayRepo repository.RelayInstanceRepository, webhookKeyRepo repository.WebhookKeyRepository, hub *relay.Hub, rdb *redis.Client) *WebhookHandler {
+	return &WebhookHandler{relayRepo: relayRepo, webhookKeyRepo: webhookKeyRepo, hub: hub, rdb: rdb}
 }
 
 // IncomingWebhook handles POST /api/v1/webhook/incoming/:instanceId
@@ -71,11 +72,33 @@ func (h *WebhookHandler) IncomingWebhook(c *gin.Context) {
 		return
 	}
 
-	// Compute expected HMAC-SHA256 signature
-	mac := hmac.New(sha256.New, []byte(instance.WebhookSecret))
-	mac.Write([]byte(tsHeader + "." + string(rawBody)))
-	expectedSig := hex.EncodeToString(mac.Sum(nil))
-	if !hmac.Equal([]byte(sigHeader), []byte(expectedSig)) {
+	// Verify HMAC-SHA256 signature: try all active keys first, fallback to instance.webhook_secret
+	activeKeys, err := h.webhookKeyRepo.GetActiveKeysForVerification(c.Request.Context(), instanceID)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to look up webhook keys")
+		return
+	}
+
+	sigValid := false
+	if len(activeKeys) > 0 {
+		for _, key := range activeKeys {
+			mac := hmac.New(sha256.New, []byte(key.KeyValue))
+			mac.Write([]byte(tsHeader + "." + string(rawBody)))
+			expected := hex.EncodeToString(mac.Sum(nil))
+			if hmac.Equal([]byte(sigHeader), []byte(expected)) {
+				sigValid = true
+				break
+			}
+		}
+	} else {
+		// Fallback to instance.webhook_secret for backwards compatibility
+		mac := hmac.New(sha256.New, []byte(instance.WebhookSecret))
+		mac.Write([]byte(tsHeader + "." + string(rawBody)))
+		expected := hex.EncodeToString(mac.Sum(nil))
+		sigValid = hmac.Equal([]byte(sigHeader), []byte(expected))
+	}
+
+	if !sigValid {
 		middleware.RespondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "invalid signature")
 		return
 	}

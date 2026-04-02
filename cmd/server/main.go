@@ -110,9 +110,10 @@ func main() {
 	var webhookH *handler.WebhookHandler
 	if cfg.RelayEnabled {
 		relayRepo := repository.NewRelayInstanceRepository(pool)
+		webhookKeyRepo := repository.NewWebhookKeyRepository(pool)
 		hub := relay.NewHub()
-		relayH = handler.NewRelayHandler(relayRepo, hub)
-		webhookH = handler.NewWebhookHandler(relayRepo, hub, rdb)
+		relayH = handler.NewRelayHandler(relayRepo, webhookKeyRepo, hub)
+		webhookH = handler.NewWebhookHandler(relayRepo, webhookKeyRepo, hub, rdb)
 		log.Println("Relay hub enabled")
 	}
 

@@ -54,5 +54,10 @@ const API = (() => {
     regenerateRelaySecret: (id) => request('POST', '/relay/instances/' + id + '/regenerate-secret'),
     regenerateRelayWebhookSecret: (id) => request('POST', '/relay/instances/' + id + '/regenerate-webhook-secret'),
     testRelayWebhook: (id) => request('POST', '/relay/instances/' + id + '/test-webhook'),
+    // Relay Webhook Keys
+    listRelayKeys: (instanceId) => request('GET', '/relay/instances/' + instanceId + '/keys'),
+    createRelayKey: (instanceId, body) => request('POST', '/relay/instances/' + instanceId + '/keys', body),
+    deleteRelayKey: (instanceId, keyId) => request('DELETE', '/relay/instances/' + instanceId + '/keys/' + keyId),
+    toggleRelayKey: (instanceId, keyId, body) => request('PATCH', '/relay/instances/' + instanceId + '/keys/' + keyId, body),
   };
 })();

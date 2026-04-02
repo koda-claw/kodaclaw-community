@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -26,12 +27,13 @@ var wsUpgrader = websocket.Upgrader{
 }
 
 type RelayHandler struct {
-	relayRepo repository.RelayInstanceRepository
-	hub       *relay.Hub
+	relayRepo      repository.RelayInstanceRepository
+	webhookKeyRepo repository.WebhookKeyRepository
+	hub            *relay.Hub
 }
 
-func NewRelayHandler(relayRepo repository.RelayInstanceRepository, hub *relay.Hub) *RelayHandler {
-	return &RelayHandler{relayRepo: relayRepo, hub: hub}
+func NewRelayHandler(relayRepo repository.RelayInstanceRepository, webhookKeyRepo repository.WebhookKeyRepository, hub *relay.Hub) *RelayHandler {
+	return &RelayHandler{relayRepo: relayRepo, webhookKeyRepo: webhookKeyRepo, hub: hub}
 }
 
 // CreateInstance creates a new relay instance for the authenticated user.
@@ -287,4 +289,186 @@ func (h *RelayHandler) ServeWS(c *gin.Context) {
 
 	client := relay.NewClient(h.hub, conn)
 	go client.Run(context.Background(), h.relayRepo)
+}
+
+// ListKeys returns all webhook keys for a relay instance (key_value excluded).
+func (h *RelayHandler) ListKeys(c *gin.Context) {
+	userID := c.GetString(middleware.ContextUserID)
+	instanceID := c.Param("id")
+
+	instance, err := h.relayRepo.GetRelayInstanceByID(c.Request.Context(), instanceID)
+	if err != nil {
+		if errors.Is(err, repository.ErrRelayInstanceNotFound) {
+			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Relay instance not found")
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get instance")
+		return
+	}
+	if instance.UserID != userID {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Not your instance")
+		return
+	}
+
+	keys, err := h.webhookKeyRepo.ListWebhookKeys(c.Request.Context(), instanceID)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to list keys")
+		return
+	}
+	if keys == nil {
+		keys = []model.RelayWebhookKey{}
+	}
+	middleware.RespondOK(c, keys)
+}
+
+// CreateKey generates a new webhook key for a relay instance.
+func (h *RelayHandler) CreateKey(c *gin.Context) {
+	userID := c.GetString(middleware.ContextUserID)
+	instanceID := c.Param("id")
+
+	instance, err := h.relayRepo.GetRelayInstanceByID(c.Request.Context(), instanceID)
+	if err != nil {
+		if errors.Is(err, repository.ErrRelayInstanceNotFound) {
+			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Relay instance not found")
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get instance")
+		return
+	}
+	if instance.UserID != userID {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Not your instance")
+		return
+	}
+
+	var req model.CreateRelayWebhookKeyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		return
+	}
+
+	var expiresAt *time.Time
+	if req.ExpiresAt != nil {
+		t, err := time.Parse(time.RFC3339, *req.ExpiresAt)
+		if err != nil {
+			middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "invalid expiresAt format, expected RFC3339")
+			return
+		}
+		expiresAt = &t
+	}
+
+	key := &model.RelayWebhookKey{
+		InstanceID: instanceID,
+		KeyName:    req.KeyName,
+		IsActive:   true,
+		ExpiresAt:  expiresAt,
+	}
+	if err := h.webhookKeyRepo.CreateWebhookKey(c.Request.Context(), key); err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create key")
+		return
+	}
+
+	middleware.RespondCreated(c, model.CreateRelayWebhookKeyResponse{
+		ID:         key.ID,
+		InstanceID: key.InstanceID,
+		KeyName:    key.KeyName,
+		KeyValue:   key.KeyValue,
+		KeyPrefix:  key.KeyPrefix,
+		IsActive:   key.IsActive,
+		ExpiresAt:  key.ExpiresAt,
+		CreatedAt:  key.CreatedAt,
+	})
+}
+
+// DeleteKey removes a webhook key from a relay instance.
+func (h *RelayHandler) DeleteKey(c *gin.Context) {
+	userID := c.GetString(middleware.ContextUserID)
+	instanceID := c.Param("id")
+	keyID := c.Param("keyId")
+
+	instance, err := h.relayRepo.GetRelayInstanceByID(c.Request.Context(), instanceID)
+	if err != nil {
+		if errors.Is(err, repository.ErrRelayInstanceNotFound) {
+			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Relay instance not found")
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get instance")
+		return
+	}
+	if instance.UserID != userID {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Not your instance")
+		return
+	}
+
+	key, err := h.webhookKeyRepo.GetWebhookKey(c.Request.Context(), keyID)
+	if err != nil {
+		if errors.Is(err, repository.ErrWebhookKeyNotFound) {
+			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Webhook key not found")
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get key")
+		return
+	}
+	if key.InstanceID != instanceID {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Key does not belong to this instance")
+		return
+	}
+
+	if err := h.webhookKeyRepo.DeleteWebhookKey(c.Request.Context(), keyID); err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to delete key")
+		return
+	}
+	middleware.RespondOK(c, gin.H{"message": "Webhook key deleted"})
+}
+
+// ToggleKey updates the is_active status of a webhook key.
+func (h *RelayHandler) ToggleKey(c *gin.Context) {
+	userID := c.GetString(middleware.ContextUserID)
+	instanceID := c.Param("id")
+	keyID := c.Param("keyId")
+
+	instance, err := h.relayRepo.GetRelayInstanceByID(c.Request.Context(), instanceID)
+	if err != nil {
+		if errors.Is(err, repository.ErrRelayInstanceNotFound) {
+			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Relay instance not found")
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get instance")
+		return
+	}
+	if instance.UserID != userID {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Not your instance")
+		return
+	}
+
+	var req struct {
+		IsActive *bool `json:"isActive"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		return
+	}
+	if req.IsActive == nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "isActive is required")
+		return
+	}
+
+	key, err := h.webhookKeyRepo.GetWebhookKey(c.Request.Context(), keyID)
+	if err != nil {
+		if errors.Is(err, repository.ErrWebhookKeyNotFound) {
+			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Webhook key not found")
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get key")
+		return
+	}
+	if key.InstanceID != instanceID {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Key does not belong to this instance")
+		return
+	}
+
+	if err := h.webhookKeyRepo.UpdateWebhookKeyActive(c.Request.Context(), keyID, *req.IsActive); err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update key")
+		return
+	}
+	middleware.RespondOK(c, gin.H{"id": keyID, "isActive": *req.IsActive})
 }

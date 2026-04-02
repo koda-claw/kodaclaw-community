@@ -29,6 +29,24 @@ func RunRelayMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_relay_instances_user ON relay_instances(user_id)`,
 		`ALTER TABLE relay_instances ADD COLUMN IF NOT EXISTS webhook_secret VARCHAR(200) NOT NULL DEFAULT ''`,
+		`CREATE TABLE IF NOT EXISTS relay_webhook_keys (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			instance_id UUID NOT NULL REFERENCES relay_instances(id) ON DELETE CASCADE,
+			key_name VARCHAR(100) NOT NULL DEFAULT '',
+			key_value VARCHAR(200) NOT NULL,
+			key_prefix VARCHAR(50) NOT NULL DEFAULT '',
+			is_active BOOLEAN NOT NULL DEFAULT true,
+			expires_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_webhook_keys_instance ON relay_webhook_keys(instance_id)`,
+		`INSERT INTO relay_webhook_keys (instance_id, key_name, key_value, key_prefix)
+		 SELECT id, 'default', webhook_secret, SUBSTRING(webhook_secret, 1, 14) || '...'
+		 FROM relay_instances
+		 WHERE webhook_secret != '' AND webhook_secret IS NOT NULL
+		 AND NOT EXISTS (
+		     SELECT 1 FROM relay_webhook_keys wk WHERE wk.instance_id = relay_instances.id
+		 )`,
 	}
 	for _, sql := range migrations {
 		if _, err := pool.Exec(ctx, sql); err != nil {
