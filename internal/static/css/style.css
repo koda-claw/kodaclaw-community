@@ -1921,3 +1921,36 @@ a:hover { color: var(--accent-hover); }
 
 /* Card hover */
 .asset-card:hover { border-color: rgba(139,92,246,0.3); box-shadow: 0 0 0 1px rgba(139,92,246,0.15); }
+
+/* ===== Assets List View ===== */
+.assets-list { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--border, #2a2a3a); border-radius: 10px; overflow: hidden; }
+.asset-row { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 16px; padding: 14px 16px; border-bottom: 1px solid var(--border, #2a2a3a); transition: background 0.15s; cursor: pointer; }
+.asset-row:last-child { border-bottom: none; }
+.asset-row:hover { background: rgba(255,255,255,0.02); }
+.asset-row:hover .asset-row-actions { opacity: 1; }
+.asset-row-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.asset-row-info { min-width: 0; }
+.asset-row-name { font-size: 0.9rem; font-weight: 600; color: #e2e2f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.asset-row-desc { font-size: 0.78rem; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.asset-row-meta { display: flex; align-items: center; gap: 14px; font-size: 0.8rem; color: #6b7280; }
+.asset-row-meta span { display: flex; align-items: center; gap: 4px; }
+.asset-row-actions { opacity: 0; transition: opacity 0.15s; display: flex; align-items: center; gap: 6px; }
+.asset-row-actions .btn-row-link,
+.asset-row-actions .btn-danger { font-size: 0.78rem; padding: 4px 10px; border-radius: 6px; cursor: pointer; background: none; border: 1px solid transparent; color: #6b7280; text-decoration: none; display: inline-block; }
+.asset-row-actions .btn-row-link:hover { background: rgba(255,255,255,0.05); border-color: var(--border, #2a2a3a); color: #e2e2f0; }
+.asset-row-actions .btn-danger:hover { color: #ef4444; border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.05); }
+.reject-reason-inline { font-size: 0.75rem; color: #f87171; margin-top: 4px; }
+
+/* Status tabs — underline indicator */
+.status-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border, #2a2a3a); margin-bottom: 16px; }
+.status-tabs .tab-btn { padding: 8px 16px; font-size: 0.82rem; color: #6b7280; background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.15s; margin-bottom: -1px; }
+.status-tabs .tab-btn:hover { color: #e2e2f0; }
+.status-tabs .tab-btn.active { color: #a78bfa; border-bottom-color: #7c3aed; }
+.tab-count-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; font-size: 0.7rem; background: rgba(255,255,255,0.06); color: #6b7280; margin-left: 6px; }
+.tab-btn.active .tab-count-badge { background: rgba(124,58,237,0.15); color: #a78bfa; }
+
+/* Improved empty state */
+.assets-empty { text-align: center; padding: 60px 20px; }
+.assets-empty i { color: #3b3b4b; margin-bottom: 16px; display: block; margin-left: auto; margin-right: auto; }
+.assets-empty h3 { font-size: 1rem; color: #e2e2f0; margin-bottom: 6px; }
+.assets-empty p { font-size: 0.85rem; color: #6b7280; margin-bottom: 20px; }

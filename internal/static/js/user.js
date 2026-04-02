@@ -193,7 +193,7 @@ const UserPage = (() => {
           <a href="#/upload" class="btn btn-sm btn-primary">发布新资产</a>
         </div>
       `;
-      html += '<div class="status-tabs status-tabs-badge">';
+      html += '<div class="status-tabs">';
       tabs.forEach(t => {
         const cls = myAssetsStatus === t.key ? 'tab-btn active' : 'tab-btn';
         html += `<button class="${cls}" data-status="${t.key}">${t.label}<span class="tab-count-badge">${t.count}</span></button>`;
@@ -201,14 +201,15 @@ const UserPage = (() => {
       html += '</div>';
 
       if (!assets.length) {
-        html += `<div class="my-assets-empty">
-          <p class="empty-hint">你还没有发布任何资产</p>
-          <a href="#/upload" class="btn btn-primary btn-sm">发布第一个资产</a>
+        html += `<div class="assets-empty">
+          <i data-lucide="package-open" style="width:48px;height:48px;"></i>
+          <h3>暂无资产</h3>
+          <p>发布第一个资产到社区</p>
+          <a href="#/upload" class="btn btn-primary btn-sm">发布新资产</a>
         </div>`;
       } else {
-        html += '<div class="asset-grid my-assets-grid">';
+        html += '<div class="assets-list">';
         assets.forEach(a => {
-          const tags = (a.tags || []).map(t => `<span class="tag">${Components.escHtml(t)}</span>`).join('');
           const typeLabel = a.type === 'soul' ? 'SOUL' : 'SKILL';
           const typeClass = a.type === 'soul' ? 'badge-soul' : 'badge-skill';
           let statusBadge = '';
@@ -216,32 +217,35 @@ const UserPage = (() => {
           else if (a.status === 'rejected') statusBadge = '<span class="status-badge status-rejected">已拒绝</span>';
           else if (a.status === 'approved') statusBadge = '<span class="status-badge status-approved">已通过</span>';
 
-          let rejectInfo = '';
-          if (a.status === 'rejected' && (a.rejection_reason || a.reject_reason)) {
-            rejectInfo = `<div class="reject-reason">拒绝原因：${Components.escHtml(a.rejection_reason || a.reject_reason)}</div>`;
-          }
-
-          const version = a.current_version ? `<span class="asset-version">v${Components.escHtml(a.current_version)}</span>` : '';
           const dlCount = a.install_count || a.download_count || 0;
           const rating = a.rating_avg ? parseFloat(a.rating_avg).toFixed(1) : null;
+          const versionText = a.current_version ? `v${Components.escHtml(a.current_version)}` : '—';
+          const descText = Components.escHtml(a.description || '');
+
+          let rejectReason = '';
+          if (a.status === 'rejected' && (a.rejection_reason || a.reject_reason)) {
+            rejectReason = `<div class="reject-reason-inline">拒绝原因：${Components.escHtml(a.rejection_reason || a.reject_reason)}</div>`;
+          }
 
           html += `
-            <div class="asset-card my-asset-card" data-id="${a.id}" data-name="${Components.escHtml(a.name)}">
-              <div class="card-header">
-                <span class="badge ${typeClass}">${typeLabel}</span>
-                ${statusBadge}
-                ${version}
+            <div class="asset-row" data-id="${a.id}" data-name="${Components.escHtml(a.name)}">
+              <div class="asset-row-main">
+                <span class="badge ${typeClass}" style="flex-shrink:0;font-size:0.65rem;">${typeLabel}</span>
+                <div class="asset-row-info">
+                  <div class="asset-row-name">${Components.escHtml(a.name)}</div>
+                  ${descText ? `<div class="asset-row-desc">${descText}</div>` : ''}
+                  ${rejectReason}
+                </div>
               </div>
-              <h3 class="card-title">${Components.escHtml(a.name)}</h3>
-              <p class="card-desc">${Components.escHtml(a.description || '')}</p>
-              ${rejectInfo}
-              <div class="card-metrics">
-                <span class="metric-item metric-dl" title="下载次数">&#8595; <strong>${dlCount}</strong></span>
-                ${rating ? `<span class="metric-item metric-rating" title="评分">★ <strong>${rating}</strong></span>` : ''}
+              <div class="asset-row-meta">
+                <span style="font-family:monospace;font-size:0.78rem;color:#6b7280;">${versionText}</span>
+                <span title="下载次数"><i data-lucide="download" style="width:13px;height:13px;"></i>${dlCount}</span>
+                ${rating ? `<span title="评分"><i data-lucide="star" style="width:13px;height:13px;color:#f0a130;"></i>${rating}</span>` : ''}
               </div>
-              <div class="card-tags">${tags}</div>
-              <div class="card-actions">
-                <button class="btn btn-sm btn-danger btn-delete-asset" data-id="${a.id}" data-name="${Components.escHtml(a.name)}">删除</button>
+              <div>${statusBadge}</div>
+              <div class="asset-row-actions">
+                <a href="#/asset/${a.id}" class="btn-row-link">详情</a>
+                <button class="btn-danger btn-delete-asset" data-id="${a.id}" data-name="${Components.escHtml(a.name)}">删除</button>
               </div>
             </div>`;
         });
@@ -260,6 +264,7 @@ const UserPage = (() => {
       </div>`;
 
       el.innerHTML = html;
+      if (typeof lucide !== 'undefined') lucide.createIcons();
 
       el.querySelectorAll('.status-tabs .tab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -295,10 +300,10 @@ const UserPage = (() => {
         }
       });
 
-      el.querySelectorAll('.asset-card').forEach(card => {
-        card.addEventListener('click', (e) => {
-          if (e.target.closest('.card-actions')) return;
-          window.location.hash = '#/asset/' + card.dataset.id;
+      el.querySelectorAll('.asset-row').forEach(row => {
+        row.addEventListener('click', (e) => {
+          if (e.target.closest('.asset-row-actions')) return;
+          window.location.hash = '#/asset/' + row.dataset.id;
         });
       });
 
