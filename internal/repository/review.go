@@ -10,6 +10,8 @@ import (
 
 type ReviewRepository interface {
 	Create(ctx context.Context, review *model.Review) error
+	Update(ctx context.Context, review *model.Review) error
+	GetByUserAndAsset(ctx context.Context, assetID, userID uuid.UUID) (*model.Review, error)
 	ExistsByUserAndAsset(ctx context.Context, assetID, userID uuid.UUID) (bool, error)
 	ListByAssetID(ctx context.Context, assetID uuid.UUID, page, pageSize int) ([]model.Review, int, error)
 }
@@ -80,4 +82,27 @@ func (r *reviewRepo) ListByAssetID(ctx context.Context, assetID uuid.UUID, page,
 		return nil, 0, err
 	}
 	return reviews, total, nil
+}
+
+func (r *reviewRepo) Update(ctx context.Context, review *model.Review) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE reviews SET content = $1, compatibility = $2, usefulness = $3, security = $4
+		 WHERE id = $5`,
+		review.Content, review.Compatibility, review.Usefulness, review.Security, review.ID)
+	return err
+}
+
+func (r *reviewRepo) GetByUserAndAsset(ctx context.Context, assetID, userID uuid.UUID) (*model.Review, error) {
+	var rev model.Review
+	err := r.pool.QueryRow(ctx,
+		`SELECT r.id, r.asset_id, r.user_id, u.username, r.content, r.compatibility, r.usefulness, r.security, r.created_at
+		 FROM reviews r JOIN users u ON r.user_id = u.id
+		 WHERE r.asset_id = $1 AND r.user_id = $2`,
+		assetID, userID).Scan(
+		&rev.ID, &rev.AssetID, &rev.UserID, &rev.Username,
+		&rev.Content, &rev.Compatibility, &rev.Usefulness, &rev.Security, &rev.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &rev, nil
 }

@@ -63,19 +63,7 @@ func (h *ReviewHandler) Create(c *gin.Context) {
 		return
 	}
 
-	// Check for duplicate review
-	exists, err := h.reviewRepo.ExistsByUserAndAsset(c.Request.Context(), assetID, uid)
-	if err != nil {
-		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to check existing review")
-		return
-	}
-	if exists {
-		middleware.RespondError(c, http.StatusConflict, "CONFLICT", "You have already reviewed this asset")
-		return
-	}
-
 	review := &model.Review{
-		ID:            uuid.New(),
 		AssetID:       assetID,
 		UserID:        uid,
 		Content:       req.Content,
@@ -84,9 +72,22 @@ func (h *ReviewHandler) Create(c *gin.Context) {
 		Security:      req.Security,
 	}
 
-	if err := h.reviewRepo.Create(c.Request.Context(), review); err != nil {
-		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create review")
-		return
+	// Upsert: update if exists, create if not
+	existing, err := h.reviewRepo.GetByUserAndAsset(c.Request.Context(), assetID, uid)
+	if err == nil && existing != nil {
+		// Update existing review
+		review.ID = existing.ID
+		if err := h.reviewRepo.Update(c.Request.Context(), review); err != nil {
+			middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update review")
+			return
+		}
+	} else {
+		// Create new review
+		review.ID = uuid.New()
+		if err := h.reviewRepo.Create(c.Request.Context(), review); err != nil {
+			middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create review")
+			return
+		}
 	}
 
 	go h.assetRepo.UpdateAvgRating(context.Background(), assetID)
@@ -95,7 +96,7 @@ func (h *ReviewHandler) Create(c *gin.Context) {
 		h.activitySvc.Record(c.Request.Context(), uid, "rate", &assetID)
 	}
 
-	middleware.RespondCreated(c, review)
+	middleware.RespondOK(c, review)
 }
 
 // List godoc
