@@ -30,6 +30,7 @@ func Setup(
 	// Static frontend
 	// Bind page (must be before StaticFile to avoid route conflict)
 	engine.GET("/bind", bindH.GetBindPage)
+	engine.GET("/bind-error", githubH.BindErrorPage)
 	engine.GET("/claim", func(c *gin.Context) { c.Redirect(302, "/bind?token="+c.Query("token")) })
 
 	// Static frontend
