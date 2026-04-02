@@ -641,6 +641,8 @@ const UserPage = (() => {
           const statusClass = isOnline ? 'relay-online' : 'relay-offline';
           const statusLabel = isOnline ? '在线' : '离线';
           const configJson = JSON.stringify({ relayUrl: 'wss://community.ai-koda.com/ws/relay', accountId: accountID });
+          const webhookUrl = `https://community.ai-koda.com/api/v1/webhook/incoming/${inst.id}`;
+          const curlExample = `curl -X POST "${webhookUrl}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"text": "hello from external system"}'`;
 
           html += `
             <div class="relay-card">
@@ -656,6 +658,15 @@ const UserPage = (() => {
                 ${lastConn ? `<span>最近连接: ${new Date(lastConn).toLocaleString('zh-CN')}</span>` : '<span>尚未连接</span>'}
                 &nbsp;·&nbsp;
                 <span>创建于: ${createdAt ? new Date(createdAt).toLocaleDateString('zh-CN') : '未知'}</span>
+              </div>
+              <div class="relay-card-meta">
+                <span>Webhook URL: <code>${webhookUrl}</code></span>
+                <button class="relay-copy-btn" data-copy="${webhookUrl}" title="复制 Webhook URL">复制</button>
+              </div>
+              <div class="relay-card-meta" style="flex-direction:column;align-items:flex-start;gap:0.4rem">
+                <span style="font-size:0.8rem;color:var(--text-muted,#94a3b8)">向此 URL 发送任意 JSON 即可将事件转发到 KodaClaw</span>
+                <button class="btn btn-sm btn-relay-curl-toggle" data-id="${Components.escHtml(inst.id)}">查看 curl 示例</button>
+                <pre id="curl-${Components.escHtml(inst.id)}" style="display:none;margin:0;font-size:0.78rem;background:var(--surface-alt,#1e293b);color:#e2e8f0;padding:0.6rem;border-radius:0.4rem;overflow-x:auto;white-space:pre-wrap">${Components.escHtml(curlExample)}</pre>
               </div>
               <div class="relay-card-actions">
                 <button class="btn btn-sm btn-relay-test-conn" data-id="${Components.escHtml(inst.id)}">测试连接</button>
@@ -700,6 +711,19 @@ const UserPage = (() => {
             showToast('❌ 发送失败: ' + err.message);
           }
           btn.disabled = false;
+        });
+      });
+
+      el.querySelectorAll('.btn-relay-curl-toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const pre = el.querySelector(`#curl-${btn.dataset.id}`);
+          if (pre.style.display === 'none') {
+            pre.style.display = 'block';
+            btn.textContent = '收起示例';
+          } else {
+            pre.style.display = 'none';
+            btn.textContent = '查看 curl 示例';
+          }
         });
       });
 
