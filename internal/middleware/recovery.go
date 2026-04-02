@@ -3,6 +3,7 @@ package middleware
 import (
 	"log/slog"
 	"net/http"
+	"runtime/debug"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,6 +18,7 @@ func Recovery() gin.HandlerFunc {
 					"error", err,
 					"method", c.Request.Method,
 					"path", c.Request.URL.Path,
+					"stack", string(debug.Stack()),
 				)
 				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 					"code":    "INTERNAL_ERROR",
