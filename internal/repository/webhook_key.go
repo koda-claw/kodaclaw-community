@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -13,6 +14,14 @@ import (
 
 var ErrWebhookKeyNotFound = errors.New("webhook key not found")
 
+// WebhookKeyWithInstance 包含 key 信息及其所属实例信息
+type WebhookKeyWithInstance struct {
+	model.RelayWebhookKey
+	UserID       string
+	AccountID    string
+	InstanceName string
+}
+
 type WebhookKeyRepository interface {
 	ListWebhookKeys(ctx context.Context, instanceID string) ([]model.RelayWebhookKey, error)
 	GetWebhookKey(ctx context.Context, keyID string) (*model.RelayWebhookKey, error)
@@ -20,6 +29,8 @@ type WebhookKeyRepository interface {
 	DeleteWebhookKey(ctx context.Context, keyID string) error
 	UpdateWebhookKeyActive(ctx context.Context, keyID string, isActive bool) error
 	GetActiveKeysForVerification(ctx context.Context, instanceID string) ([]model.RelayWebhookKey, error)
+	// GetExpiringKeys 查找 expires_at <= before 的 active key，并过滤掉已通知的 key
+	GetExpiringKeys(ctx context.Context, before time.Time, notifiedKeyIDs map[string]bool) ([]WebhookKeyWithInstance, error)
 }
 
 type webhookKeyRepo struct {
@@ -132,6 +143,39 @@ func (r *webhookKeyRepo) GetActiveKeysForVerification(ctx context.Context, insta
 			return nil, err
 		}
 		results = append(results, k)
+	}
+	return results, rows.Err()
+}
+
+func (r *webhookKeyRepo) GetExpiringKeys(ctx context.Context, before time.Time, notifiedKeyIDs map[string]bool) ([]WebhookKeyWithInstance, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT wk.id, wk.instance_id, wk.key_name, wk.key_prefix, wk.is_active, wk.expires_at, wk.created_at,
+		        ri.user_id, ri.account_id, ri.instance_name
+		 FROM relay_webhook_keys wk
+		 JOIN relay_instances ri ON wk.instance_id = ri.id
+		 WHERE wk.is_active = true
+		   AND wk.expires_at IS NOT NULL
+		   AND wk.expires_at <= $1
+		 ORDER BY wk.expires_at ASC`,
+		before,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []WebhookKeyWithInstance
+	for rows.Next() {
+		var k WebhookKeyWithInstance
+		if err := rows.Scan(
+			&k.ID, &k.InstanceID, &k.KeyName, &k.KeyPrefix, &k.IsActive, &k.ExpiresAt, &k.CreatedAt,
+			&k.UserID, &k.AccountID, &k.InstanceName,
+		); err != nil {
+			return nil, err
+		}
+		if !notifiedKeyIDs[k.ID] {
+			results = append(results, k)
+		}
 	}
 	return results, rows.Err()
 }

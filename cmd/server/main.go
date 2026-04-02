@@ -116,6 +116,9 @@ func main() {
 	githubH := handler.NewGitHubHandler(userRepo)
 	claimH := handler.NewClaimHandler(userRepo)
 
+	taskCtx, taskCancel := context.WithCancel(context.Background())
+	defer taskCancel()
+
 	var relayH *handler.RelayHandler
 	var webhookH *handler.WebhookHandler
 	if cfg.RelayEnabled {
@@ -123,6 +126,11 @@ func main() {
 		relayH = handler.NewRelayHandler(relayRepo, webhookKeyRepo, hub)
 		webhookH = handler.NewWebhookHandler(relayRepo, webhookKeyRepo, hub, rdb)
 		log.Println("Relay hub enabled")
+
+		// 每 5 分钟检查一次即将过期的 webhook key
+		go periodicTask(taskCtx, 5*time.Minute, func() {
+			service.CheckExpiringWebhookKeys(taskCtx, notificationSvc, webhookKeyRepo)
+		})
 	}
 
 	engine := gin.Default()
@@ -151,6 +159,20 @@ func main() {
 		log.Fatalf("Server forced to shutdown: %v", err)
 	}
 	log.Println("Server exited")
+}
+
+func periodicTask(ctx context.Context, interval time.Duration, fn func()) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	fn() // 启动时立即执行一次
+	for {
+		select {
+		case <-ticker.C:
+			fn()
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 func runMigrations(ctx context.Context, pool *pgxpool.Pool) error {
