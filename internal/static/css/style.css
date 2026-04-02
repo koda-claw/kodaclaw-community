@@ -210,7 +210,9 @@ a:hover { color: var(--accent-hover); }
 .review-author { font-weight: 600; font-size: 0.875rem; }
 .review-stars { color: #fbbf24; font-size: 0.9rem; }
 .review-date { color: var(--text-muted); font-size: 0.78rem; margin-left: auto; }
-.review-body { color: var(--text-muted); font-size: 0.875rem; }
+.review-body { color: var(--text); font-size: 0.875rem; line-height: 1.7; }
+.review-body > *:first-child { margin-top: 0; }
+.review-body > *:last-child { margin-bottom: 0; }
 
 /* ===== Star input ===== */
 .star-input { display: flex; flex-direction: row-reverse; justify-content: flex-end; gap: 4px; }
@@ -1275,4 +1277,106 @@ a:hover { color: var(--accent-hover); }
 }
 @media (max-width: 600px) {
   .footer-inner { flex-direction: column; gap: .5rem; }
+
+
+/* ========== Markdown 渲染（评论、详情描述等） ========== */
+.marked-body h1, .marked-body h2, .marked-body h3,
+.review-body h1, .review-body h2, .review-body h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 1em 0 0.4em;
+}
+.marked-body h4, .review-body h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0.8em 0 0.3em;
+}
+.marked-body p, .review-body p {
+  color: var(--text);
+  margin: 0.6em 0;
+  line-height: 1.7;
+}
+.marked-body ul, .review-body ul,
+.marked-body ol, .review-body ol {
+  padding-left: 1.5em;
+  margin: 0.6em 0;
+  color: var(--text);
+}
+.marked-body li, .review-body li {
+  margin-bottom: 0.25em;
+  line-height: 1.6;
+}
+.marked-body code, .review-body code {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.82rem;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.15em 0.35em;
+  color: var(--accent);
+}
+.marked-body pre, .review-body pre {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  overflow-x: auto;
+  font-size: 0.82rem;
+  font-family: 'Fira Code', 'SF Mono', 'Consolas', monospace;
+  line-height: 1.5;
+  margin: 0.75em 0;
+}
+.marked-body pre code, .review-body pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  border-radius: 0;
+  color: var(--text);
+}
+.marked-body blockquote, .review-body blockquote {
+  border-left: 3px solid var(--accent);
+  margin: 0.75em 0;
+  padding: 0.25em 0.8em;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.marked-body a, .review-body a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.marked-body a:hover, .review-body a:hover {
+  color: var(--accent-hover);
+}
+.marked-body strong, .review-body strong {
+  font-weight: 600;
+  color: var(--text);
+}
+.marked-body em, .review-body em {
+  font-style: italic;
+}
+.marked-body table, .review-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75em 0;
+  font-size: 0.85rem;
+}
+.marked-body th, .review-body th,
+.marked-body td, .review-body td {
+  border: 1px solid var(--border);
+  padding: 0.4em 0.6em;
+  text-align: left;
+  color: var(--text);
+}
+.marked-body th, .review-body th {
+  background: var(--bg3);
+  font-weight: 600;
+}
+.marked-body hr, .review-body hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1em 0;
+}
 }
