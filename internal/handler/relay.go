@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -246,5 +247,5 @@ func (h *RelayHandler) ServeWS(c *gin.Context) {
 	}
 
 	client := relay.NewClient(h.hub, conn)
-	go client.Run(c.Request.Context(), h.relayRepo)
+	go client.Run(context.Background(), h.relayRepo)
 }

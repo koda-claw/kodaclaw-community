@@ -91,6 +91,7 @@ func (c *Client) Run(ctx context.Context, relayRepo repository.RelayInstanceRepo
 		c.writeJSON(AuthFailedFrame{Type: FrameTypeAuthFailed, Code: "UNKNOWN_ACCOUNT", Message: "account not found"})
 		return
 	}
+	log.Printf("[RELAY-DEBUG] Found instance: id=%q account_id=%q", instance.ID, instance.AccountID)
 
 	if err := bcrypt.CompareHashAndPassword([]byte(instance.SharedSecret), []byte(authFrame.SharedSecret)); err != nil {
 		c.writeJSON(AuthFailedFrame{Type: FrameTypeAuthFailed, Code: "INVALID_SECRET", Message: "invalid shared secret"})
