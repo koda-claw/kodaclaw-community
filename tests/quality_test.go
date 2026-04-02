@@ -266,9 +266,9 @@ func TestIntegration_DuplicateReview(t *testing.T) {
 		t.Fatalf("first review: expected 201, got %d", code)
 	}
 
-	// Second review from same user should return 409
-	if code := postReview(); code != 409 {
-		t.Errorf("duplicate review: expected 409, got %d", code)
+	// Second review from same user should return 200 (upsert)
+	if code := postReview(); code != 200 {
+		t.Errorf("duplicate review: expected 200 (upsert), got %d", code)
 	}
 }
 

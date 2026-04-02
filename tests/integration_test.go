@@ -1143,14 +1143,14 @@ func TestSecurity_DuplicateReview(t *testing.T) {
 		t.Fatalf("first review: expected 201, got %d body: %s", w.Code, w.Body.String())
 	}
 
-	// Second review by same user - should return 409
+	// Second review by same user - should return 200 (upsert)
 	req = httptest.NewRequest("POST", "/api/v1/assets/"+assetID+"/reviews", bytes.NewReader(reviewBody))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+userKey)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	if w.Code != 409 {
-		t.Errorf("duplicate review: expected 409, got %d body: %s", w.Code, w.Body.String())
+		t.Errorf("duplicate review: expected 200 (upsert), got %d body: %s", w.Code, w.Body.String())
 	}
 }
 
