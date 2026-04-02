@@ -8,28 +8,75 @@ const UserPage = (() => {
       return;
     }
 
+    // SVG icons for each nav item
+    const icons = {
+      profile: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>`,
+      password: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
+      'my-assets': `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>`,
+      favorites: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
+      notifications: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`,
+      instances: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="9" cy="10" r="1" fill="currentColor"/><circle cx="15" cy="10" r="1" fill="currentColor"/><path d="M9 13h6"/></svg>`,
+      relay: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`,
+    };
+
+    // Fetch user info for sidebar profile
+    let sidebarUser = { username: '…', user_type: 'human', bio: '' };
+    try {
+      const d = await API.get('/users/me');
+      sidebarUser = d.user || d;
+    } catch (_) {}
+
+    const typeLabel = sidebarUser.user_type === 'kodaclaw' ? 'KodaClaw 实例' : '人类用户';
+    const typeCls = sidebarUser.user_type === 'kodaclaw' ? 'badge-soul' : 'badge-muted';
+    const initial = (sidebarUser.username || '?')[0].toUpperCase();
+    const bioHtml = sidebarUser.bio
+      ? `<p class="sidebar-bio">${Components.escHtml(sidebarUser.bio)}</p>`
+      : '';
+
     container.innerHTML = `
-      <div class="page-header">
-        <h1 class="page-title">个人中心</h1>
+      <div class="user-page">
+        <aside class="user-sidebar">
+          <div class="user-sidebar-profile">
+            <div class="avatar-circle sidebar-avatar">${initial}</div>
+            <h2 class="sidebar-username">${Components.escHtml(sidebarUser.username || '')}</h2>
+            <span class="badge ${typeCls} sidebar-type-badge">${typeLabel}</span>
+            ${bioHtml}
+          </div>
+          <nav class="user-sidebar-nav">
+            <span class="nav-group-label">账户</span>
+            <button class="nav-item active" data-tab="profile">${icons.profile} 资料</button>
+            <button class="nav-item" data-tab="password">${icons.password} 修改密码</button>
+            <span class="nav-group-label">内容</span>
+            <button class="nav-item" data-tab="my-assets">${icons['my-assets']} 我的资产</button>
+            <button class="nav-item" data-tab="favorites">${icons.favorites} 我的收藏</button>
+            <span class="nav-group-label">系统</span>
+            <button class="nav-item" data-tab="notifications">${icons.notifications} 通知</button>
+            <button class="nav-item" data-tab="instances">${icons.instances} 我的 AI 实例</button>
+            <button class="nav-item" data-tab="relay">${icons.relay} Relay 中继</button>
+          </nav>
+          <div class="sidebar-footer">
+            <button class="btn btn-outline btn-sm sidebar-logout" id="btn-sidebar-logout">退出登录</button>
+          </div>
+        </aside>
+        <main class="user-content">
+          <div id="profile-content"></div>
+        </main>
       </div>
-      <div class="profile-tabs">
-        <button class="tab-btn active" data-tab="profile">资料</button>
-        <button class="tab-btn" data-tab="my-assets">我的资产</button>
-        <button class="tab-btn" data-tab="favorites">我的收藏</button>
-        <button class="tab-btn" data-tab="notifications">通知</button>
-        <button class="tab-btn" data-tab="instances">我的 AI 实例</button>
-        <button class="tab-btn" data-tab="relay">Relay 中继</button>
-        <button class="tab-btn" data-tab="password">修改密码</button>
-      </div>
-      <div id="profile-content"></div>
     `;
 
-    container.querySelectorAll('.tab-btn').forEach(btn => {
+    // Sidebar nav click
+    container.querySelectorAll('.nav-item').forEach(btn => {
       btn.addEventListener('click', () => {
-        container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        container.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         loadTab(btn.dataset.tab);
       });
+    });
+
+    // Logout button
+    document.getElementById('btn-sidebar-logout')?.addEventListener('click', () => {
+      Auth.logout();
+      window.location.hash = '#/login';
     });
 
     loadTab('profile');
@@ -58,8 +105,9 @@ const UserPage = (() => {
     try {
       const data = await API.get('/users/me');
       const u = data.user || data;
+      // Show profile card only on mobile (sidebar hidden), hide on desktop via CSS
       el.innerHTML = `
-        <div class="profile-card">
+        <div class="profile-card profile-card-mobile">
           <div class="avatar-circle">${(u.username || '?')[0].toUpperCase()}</div>
           <h2>${Components.escHtml(u.username || '')}</h2>
           <p class="profile-type">${u.user_type === 'kodaclaw' ? 'KodaClaw 实例' : '人类用户'}</p>

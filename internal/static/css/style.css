@@ -1473,3 +1473,232 @@ a:hover { color: var(--accent-hover); }
   opacity: 1;
   background: rgba(255,255,255,0.1);
 }
+
+/* ===================================================
+   个人中心 — Sidebar Layout
+   =================================================== */
+
+/* Outer container: sidebar + content */
+.user-page {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  min-height: calc(100vh - 120px);
+  /* Pull out of #app's padding to fill width properly */
+  margin: -2rem -1.5rem;
+}
+
+/* ── Sidebar ── */
+.user-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: rgba(18, 18, 26, 0.85);
+  backdrop-filter: blur(12px);
+  border-right: 1px solid var(--border);
+  position: sticky;
+  top: 60px;
+  height: calc(100vh - 60px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  /* Subtle dot noise texture */
+  background-image:
+    radial-gradient(circle, rgba(99,102,241,.05) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(18,18,26,0.95) 0%, rgba(10,10,15,0.95) 100%);
+  background-size: 24px 24px, 100% 100%;
+  scrollbar-width: none;
+}
+.user-sidebar::-webkit-scrollbar { display: none; }
+
+/* Sidebar profile card */
+.user-sidebar-profile {
+  padding: 1.75rem 1.5rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.4rem;
+}
+.sidebar-avatar {
+  width: 56px !important;
+  height: 56px !important;
+  font-size: 1.5rem !important;
+  margin: 0 0 0.5rem !important;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.2), 0 0 0 6px rgba(99,102,241,0.07);
+  flex-shrink: 0;
+}
+.sidebar-username {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+}
+.sidebar-type-badge {
+  font-size: 0.7rem !important;
+  padding: 2px 9px !important;
+}
+.badge-muted {
+  background: rgba(136,136,153,0.12);
+  color: var(--text-muted);
+  border: 1px solid rgba(136,136,153,0.25);
+}
+.sidebar-bio {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 0.15rem;
+}
+
+/* Nav list */
+.user-sidebar-nav {
+  flex: 1;
+  padding: 0.75rem 0;
+  display: flex;
+  flex-direction: column;
+}
+.nav-group-label {
+  display: block;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  padding: 1.1rem 1.5rem 0.3rem;
+  pointer-events: none;
+  opacity: 0.7;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.62rem 1.5rem;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  line-height: 1;
+  font-family: inherit;
+}
+.nav-item:hover {
+  background: rgba(255,255,255,0.035);
+  color: var(--text);
+}
+.nav-item.active {
+  background: rgba(99,102,241,0.1);
+  border-left-color: var(--accent);
+  color: var(--accent);
+}
+.nav-item svg {
+  flex-shrink: 0;
+  opacity: 0.75;
+  transition: opacity 0.15s;
+}
+.nav-item.active svg,
+.nav-item:hover svg {
+  opacity: 1;
+}
+
+/* Logout at sidebar bottom */
+.sidebar-footer {
+  padding: 1rem 1.5rem 1.5rem;
+  border-top: 1px solid var(--border);
+  margin-top: auto;
+}
+.sidebar-logout {
+  width: 100%;
+  justify-content: center;
+  color: var(--text-muted) !important;
+  font-size: 0.82rem !important;
+}
+.sidebar-logout:hover {
+  color: var(--error) !important;
+  border-color: var(--error) !important;
+}
+
+/* ── Content area ── */
+.user-content {
+  flex: 1;
+  min-width: 0;
+  padding: 2rem;
+  max-width: 900px;
+  /* Subtle gradient */
+  background: linear-gradient(160deg, rgba(99,102,241,0.03) 0%, transparent 40%);
+}
+
+/* Hide mobile profile card on desktop */
+@media (min-width: 769px) {
+  .profile-card-mobile {
+    display: none;
+  }
+}
+
+/* ── Mobile: sidebar → horizontal scrollable tab bar ── */
+@media (max-width: 768px) {
+  .user-page {
+    flex-direction: column;
+    margin: -1.25rem -1rem 0;
+  }
+  .user-sidebar {
+    width: 100%;
+    height: auto;
+    position: static;
+    flex-direction: row;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    background-image: none;
+    background: var(--bg2);
+    overflow-x: auto;
+    overflow-y: visible;
+    backdrop-filter: none;
+    padding: 0;
+  }
+  .user-sidebar-profile,
+  .sidebar-footer {
+    display: none;
+  }
+  .user-sidebar-nav {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    padding: 0;
+    gap: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .user-sidebar-nav::-webkit-scrollbar { display: none; }
+  .nav-group-label {
+    display: none;
+  }
+  .nav-item {
+    flex-shrink: 0;
+    border-left: none;
+    border-bottom: 3px solid transparent;
+    padding: 0.75rem 1rem;
+    font-size: 0.82rem;
+    gap: 0.4rem;
+    white-space: nowrap;
+  }
+  .nav-item.active {
+    border-bottom-color: var(--accent);
+    border-left-color: transparent;
+    background: rgba(99,102,241,0.08);
+  }
+  .nav-item svg {
+    width: 15px;
+    height: 15px;
+  }
+  .user-content {
+    padding: 1.25rem 1rem;
+  }
+  .profile-card-mobile {
+    display: block;
+  }
+}
