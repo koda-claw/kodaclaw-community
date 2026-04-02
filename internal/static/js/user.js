@@ -1,5 +1,6 @@
 // 个人中心
 const UserPage = (() => {
+  let relayRefreshInterval = null;
 
   async function renderPage(container) {
     if (!Auth.isLoggedIn()) {
@@ -17,6 +18,7 @@ const UserPage = (() => {
         <button class="tab-btn" data-tab="favorites">我的收藏</button>
         <button class="tab-btn" data-tab="notifications">通知</button>
         <button class="tab-btn" data-tab="instances">我的 AI 实例</button>
+        <button class="tab-btn" data-tab="relay">Relay 中继</button>
         <button class="tab-btn" data-tab="password">修改密码</button>
       </div>
       <div id="profile-content"></div>
@@ -34,6 +36,10 @@ const UserPage = (() => {
   }
 
   async function loadTab(tab) {
+    if (relayRefreshInterval) {
+      clearInterval(relayRefreshInterval);
+      relayRefreshInterval = null;
+    }
     const content = document.getElementById('profile-content');
     content.innerHTML = Components.spinner();
 
@@ -43,6 +49,7 @@ const UserPage = (() => {
       case 'favorites': await renderFavorites(content); break;
       case 'notifications': await renderNotifications(content); break;
       case 'instances': await renderInstances(content); break;
+      case 'relay': await renderRelay(content); break;
       case 'password': renderPassword(content); break;
     }
   }
@@ -296,6 +303,377 @@ const UserPage = (() => {
         </div>
       `).join('');
       el.innerHTML = `<div class="notif-list">${rows}</div>`;
+    } catch (err) {
+      el.innerHTML = Components.errorBox(err.message);
+    }
+  }
+
+  function relayCopyBtn(text, label) {
+    return `<button class="relay-copy-btn" data-copy="${Components.escHtml(text)}" title="复制">${label || '复制'}</button>`;
+  }
+
+  function setupRelayCopyBtns(container) {
+    container.querySelectorAll('.relay-copy-btn[data-copy]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const text = btn.dataset.copy;
+        navigator.clipboard.writeText(text).then(() => {
+          const orig = btn.textContent;
+          btn.textContent = '已复制';
+          setTimeout(() => { btn.textContent = orig; }, 1000);
+        });
+      });
+    });
+  }
+
+  async function renderRelay(el) {
+    if (relayRefreshInterval) {
+      clearInterval(relayRefreshInterval);
+      relayRefreshInterval = null;
+    }
+    const refresh = () => renderRelay(el);
+
+    function showToast(message) {
+      const toast = document.createElement('div');
+      toast.style.cssText = 'position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:#1e293b;color:#f1f5f9;padding:0.6rem 1.2rem;border-radius:0.5rem;z-index:9999;font-size:0.9rem;box-shadow:0 2px 8px rgba(0,0,0,0.3)';
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    function showCreateModal() {
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.style.display = 'flex';
+      overlay.innerHTML = `
+        <div class="modal-box relay-creation-modal">
+          <h3 class="section-title">创建 Relay 实例</h3>
+          <div class="field">
+            <label>实例名称</label>
+            <input type="text" id="relay-name-input" placeholder="例如: 我的 KodaClaw" required />
+          </div>
+          <div id="relay-create-err"></div>
+          <div class="modal-actions">
+            <button class="btn btn-primary" id="btn-relay-create-confirm">创建</button>
+            <button class="btn btn-outline" id="btn-relay-create-cancel">取消</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+
+      overlay.querySelector('#btn-relay-create-cancel').addEventListener('click', () => {
+        overlay.remove();
+      });
+
+      overlay.querySelector('#btn-relay-create-confirm').addEventListener('click', async () => {
+        const nameInput = overlay.querySelector('#relay-name-input');
+        const errEl = overlay.querySelector('#relay-create-err');
+        const name = nameInput.value.trim();
+        if (!name) {
+          errEl.innerHTML = Components.errorBox('请输入实例名称');
+          return;
+        }
+        try {
+          const result = await API.createRelayInstance({ instanceName: name });
+          overlay.remove();
+          showCreatedModal(result);
+        } catch (err) {
+          errEl.innerHTML = Components.errorBox(err.message);
+        }
+      });
+    }
+
+    function showCreatedModal(inst) {
+      const configJson = JSON.stringify({
+        relayUrl: 'wss://community.ai-koda.com/ws/relay',
+        sharedSecret: inst.sharedSecret || inst.shared_secret || '',
+      });
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.style.display = 'flex';
+      overlay.innerHTML = `
+        <div class="modal-box relay-creation-modal">
+          <h3 class="section-title">实例创建成功</h3>
+          <p class="relay-creation-modal warning">⚠ 共享密钥仅显示一次，请立即保存！</p>
+          <div class="secret-display">
+            <div class="label">Account ID</div>
+            <div>${Components.escHtml(inst.accountID || inst.account_id || '')}&nbsp;${relayCopyBtn(inst.accountID || inst.account_id || '', '复制')}</div>
+            <div class="label" style="margin-top:0.6rem">Shared Secret</div>
+            <div>${Components.escHtml(inst.sharedSecret || inst.shared_secret || '')}&nbsp;${relayCopyBtn(inst.sharedSecret || inst.shared_secret || '', '复制')}</div>
+          </div>
+          <p style="font-size:0.85rem;color:var(--text-muted,#94a3b8)">将以上信息填入 KodaClaw 的 Relay 频道配置中。</p>
+          <div class="modal-actions">
+            <button class="btn btn-primary" id="btn-copy-config">复制配置 JSON</button>
+            <button class="btn btn-outline" id="btn-created-close">关闭</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      setupRelayCopyBtns(overlay);
+
+      overlay.querySelector('#btn-copy-config').addEventListener('click', () => {
+        navigator.clipboard.writeText(configJson).then(() => {
+          const btn = overlay.querySelector('#btn-copy-config');
+          btn.textContent = '已复制';
+          setTimeout(() => { btn.textContent = '复制配置 JSON'; }, 1000);
+        });
+      });
+
+      overlay.querySelector('#btn-created-close').addEventListener('click', () => {
+        overlay.remove();
+        refresh();
+      });
+    }
+
+    function showDeleteModal(inst) {
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.style.display = 'flex';
+      overlay.innerHTML = `
+        <div class="modal-box">
+          <p>确定要删除实例 "<strong>${Components.escHtml(inst.instanceName || inst.instance_name || inst.id)}</strong>" 吗？此操作不可撤销。</p>
+          <div class="modal-actions">
+            <button class="btn btn-danger" id="btn-relay-del-confirm">确认删除</button>
+            <button class="btn btn-outline" id="btn-relay-del-cancel">取消</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+
+      overlay.querySelector('#btn-relay-del-cancel').addEventListener('click', () => overlay.remove());
+      overlay.querySelector('#btn-relay-del-confirm').addEventListener('click', async () => {
+        try {
+          await API.deleteRelayInstance(inst.id);
+          overlay.remove();
+          refresh();
+        } catch (err) {
+          alert('删除失败: ' + err.message);
+        }
+      });
+    }
+
+    function showTestConnectionModal(inst) {
+      const accountID = inst.accountID || inst.account_id || '';
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.style.display = 'flex';
+      overlay.innerHTML = `
+        <div class="modal-box relay-creation-modal">
+          <h3 class="section-title">测试连接</h3>
+          <div class="field">
+            <label>Account ID</label>
+            <input type="text" id="tc-account-id" value="${Components.escHtml(accountID)}" readonly />
+          </div>
+          <div class="field">
+            <label>Shared Secret</label>
+            <input type="password" id="tc-secret" placeholder="输入 Shared Secret" />
+          </div>
+          <div id="tc-result"></div>
+          <div class="modal-actions">
+            <button class="btn btn-primary" id="btn-tc-test">测试</button>
+            <button class="btn btn-outline" id="btn-tc-close">关闭</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+
+      overlay.querySelector('#btn-tc-close').addEventListener('click', () => overlay.remove());
+      overlay.querySelector('#btn-tc-test').addEventListener('click', async () => {
+        const secret = overlay.querySelector('#tc-secret').value.trim();
+        const resultEl = overlay.querySelector('#tc-result');
+        if (!secret) {
+          resultEl.innerHTML = Components.errorBox('请输入 Shared Secret');
+          return;
+        }
+        const btn = overlay.querySelector('#btn-tc-test');
+        btn.disabled = true;
+        btn.textContent = '测试中...';
+        try {
+          const res = await API.testRelayConnection({ accountId: accountID, sharedSecret: secret });
+          if (!res.ok) {
+            resultEl.innerHTML = `<p style="color:#ef4444">❌ ${Components.escHtml(res.message || '密钥不匹配')}</p>`;
+          } else if (res.online) {
+            resultEl.innerHTML = `<p style="color:#22c55e">✅ 认证成功，实例在线</p>`;
+          } else {
+            resultEl.innerHTML = `<p style="color:#f59e0b">⚠ 认证成功，但实例当前不在线</p>`;
+          }
+        } catch (err) {
+          resultEl.innerHTML = Components.errorBox(err.message);
+        }
+        btn.disabled = false;
+        btn.textContent = '测试';
+      });
+    }
+
+    function showRegenerateModal(inst) {
+      const name = inst.instanceName || inst.instance_name || inst.id;
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.style.display = 'flex';
+      overlay.innerHTML = `
+        <div class="modal-box">
+          <p>重新生成密钥后，旧的密钥将<strong>立即失效</strong>，KodaClaw 实例会被断开。确定吗？</p>
+          <p style="font-size:0.85rem;color:var(--text-muted,#94a3b8)">实例: ${Components.escHtml(name)}</p>
+          <div class="modal-actions">
+            <button class="btn btn-danger" id="btn-regen-confirm">确认重新生成</button>
+            <button class="btn btn-outline" id="btn-regen-cancel">取消</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+
+      overlay.querySelector('#btn-regen-cancel').addEventListener('click', () => overlay.remove());
+      overlay.querySelector('#btn-regen-confirm').addEventListener('click', async () => {
+        const btn = overlay.querySelector('#btn-regen-confirm');
+        btn.disabled = true;
+        btn.textContent = '生成中...';
+        try {
+          const result = await API.regenerateRelaySecret(inst.id);
+          overlay.remove();
+          showNewSecretModal(result);
+        } catch (err) {
+          alert('生成失败: ' + err.message);
+          btn.disabled = false;
+          btn.textContent = '确认重新生成';
+        }
+      });
+    }
+
+    function showNewSecretModal(result) {
+      const accountID = result.accountId || result.account_id || '';
+      const secret = result.sharedSecret || result.shared_secret || '';
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.style.display = 'flex';
+      overlay.innerHTML = `
+        <div class="modal-box relay-creation-modal">
+          <h3 class="section-title">新密钥已生成</h3>
+          <p class="relay-creation-modal warning">⚠ 新密钥仅显示一次，请立即保存！</p>
+          <div class="secret-display">
+            <div class="label">Account ID</div>
+            <div>${Components.escHtml(accountID)}&nbsp;${relayCopyBtn(accountID, '复制')}</div>
+            <div class="label" style="margin-top:0.6rem">新 Shared Secret</div>
+            <div>${Components.escHtml(secret)}&nbsp;${relayCopyBtn(secret, '复制')}</div>
+          </div>
+          <p style="font-size:0.85rem;color:var(--text-muted,#94a3b8)">请在 KodaClaw 的 Relay 频道配置中更新此密钥。</p>
+          <div class="modal-actions">
+            <button class="btn btn-outline" id="btn-newsecret-close">关闭</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      setupRelayCopyBtns(overlay);
+
+      overlay.querySelector('#btn-newsecret-close').addEventListener('click', () => {
+        overlay.remove();
+        refresh();
+      });
+    }
+
+    try {
+      const instances = await API.getRelayInstances();
+      const list = Array.isArray(instances) ? instances : (instances.instances || []);
+
+      let html = `
+        <div class="section">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+            <h3 class="section-title" style="margin:0">Relay 中继实例</h3>
+            <button class="btn btn-primary btn-sm" id="btn-relay-create">+ 创建实例</button>
+          </div>
+      `;
+
+      if (!list.length) {
+        html += Components.emptyState('还没有 Relay 实例。创建一个后，在 KodaClaw 中配置中继连接。');
+      } else {
+        list.forEach(inst => {
+          const name = inst.instanceName || inst.instance_name || inst.id;
+          const accountID = inst.accountID || inst.account_id || '';
+          const isOnline = inst.isOnline;
+          const lastConn = inst.lastConnectedAt || inst.last_connected_at;
+          const createdAt = inst.createdAt || inst.created_at;
+          const statusClass = isOnline ? 'relay-online' : 'relay-offline';
+          const statusLabel = isOnline ? '在线' : '离线';
+          const configJson = JSON.stringify({ relayUrl: 'wss://community.ai-koda.com/ws/relay', accountId: accountID });
+
+          html += `
+            <div class="relay-card">
+              <div class="relay-card-header">
+                <span class="relay-card-name">${Components.escHtml(name)}</span>
+                <span class="${statusClass}">● ${statusLabel}</span>
+              </div>
+              <div class="relay-card-meta">
+                <span>Account ID: <code>${Components.escHtml(accountID)}</code></span>
+                <button class="relay-copy-btn" data-copy="${Components.escHtml(accountID)}" title="复制 Account ID">复制 ID</button>
+              </div>
+              <div class="relay-card-meta">
+                ${lastConn ? `<span>最近连接: ${new Date(lastConn).toLocaleString('zh-CN')}</span>` : '<span>尚未连接</span>'}
+                &nbsp;·&nbsp;
+                <span>创建于: ${createdAt ? new Date(createdAt).toLocaleDateString('zh-CN') : '未知'}</span>
+              </div>
+              <div class="relay-card-actions">
+                <button class="btn btn-sm btn-relay-test-conn" data-id="${Components.escHtml(inst.id)}">测试连接</button>
+                <button class="btn btn-sm btn-relay-test-webhook" data-id="${Components.escHtml(inst.id)}"${isOnline ? '' : ' disabled'}>发送测试消息</button>
+                <button class="btn btn-sm btn-relay-copy-config" data-config="${Components.escHtml(configJson)}">复制配置</button>
+                <button class="btn btn-sm btn-relay-regen" data-id="${Components.escHtml(inst.id)}">重新生成密钥</button>
+                <button class="btn btn-sm btn-danger btn-relay-delete" data-id="${Components.escHtml(inst.id)}" data-name="${Components.escHtml(name)}">删除</button>
+              </div>
+            </div>
+          `;
+        });
+      }
+
+      html += `</div>`;
+      el.innerHTML = html;
+
+      setupRelayCopyBtns(el);
+
+      el.querySelector('#btn-relay-create').addEventListener('click', showCreateModal);
+
+      el.querySelectorAll('.btn-relay-delete').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const inst = list.find(i => i.id === btn.dataset.id);
+          if (inst) showDeleteModal(inst);
+        });
+      });
+
+      el.querySelectorAll('.btn-relay-test-conn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const inst = list.find(i => i.id === btn.dataset.id);
+          if (inst) showTestConnectionModal(inst);
+        });
+      });
+
+      el.querySelectorAll('.btn-relay-test-webhook').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          try {
+            const res = await API.testRelayWebhook(btn.dataset.id);
+            showToast(res.ok ? '✅ 测试消息已发送，请检查 KodaClaw 是否收到' : '⚠ 实例不在线，请先建立 Relay 连接');
+          } catch (err) {
+            showToast('❌ 发送失败: ' + err.message);
+          }
+          btn.disabled = false;
+        });
+      });
+
+      el.querySelectorAll('.btn-relay-copy-config').forEach(btn => {
+        btn.addEventListener('click', () => {
+          navigator.clipboard.writeText(btn.dataset.config).then(() => {
+            const orig = btn.textContent;
+            btn.textContent = '已复制';
+            setTimeout(() => { btn.textContent = orig; }, 1000);
+          });
+        });
+      });
+
+      el.querySelectorAll('.btn-relay-regen').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const inst = list.find(i => i.id === btn.dataset.id);
+          if (inst) showRegenerateModal(inst);
+        });
+      });
+
+      relayRefreshInterval = setInterval(refresh, 10000);
+
     } catch (err) {
       el.innerHTML = Components.errorBox(err.message);
     }

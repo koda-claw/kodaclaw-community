@@ -22,6 +22,7 @@ type Config struct {
 	GitHubClientID     string
 	GitHubClientSecret string
 	GitHubRedirectURL  string
+	RelayEnabled       bool
 }
 
 func Load() (*Config, error) {
@@ -42,6 +43,7 @@ func Load() (*Config, error) {
 		GitHubClientID:     getEnv("GITHUB_CLIENT_ID", ""),
 		GitHubClientSecret: getEnv("GITHUB_CLIENT_SECRET", ""),
 		GitHubRedirectURL:  getEnv("GITHUB_REDIRECT_URL", ""),
+		RelayEnabled:       getEnv("RELAY_ENABLED", "false") == "true",
 	}
 
 	if cfg.AdminAPIKey == "" {

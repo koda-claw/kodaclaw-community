@@ -1385,3 +1385,91 @@ a:hover { color: var(--accent-hover); }
 
 /* 图片 */
 .review-body img { max-width: 100%; border-radius: var(--radius); margin: 0.5em 0; }
+
+/* Relay instance cards */
+.relay-card {
+  background: var(--card-bg, #1a1a2e);
+  border: 1px solid var(--border, #2a2a4a);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+  transition: border-color 0.2s;
+}
+.relay-card:hover {
+  border-color: var(--accent, #8B5CF6);
+}
+.relay-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+.relay-card-name {
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: var(--text, #e2e8f0);
+}
+.relay-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-muted, #94a3b8);
+  margin-bottom: 0.5rem;
+}
+.relay-card-meta code {
+  background: rgba(255,255,255,0.06);
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.82rem;
+  word-break: break-all;
+}
+.relay-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.relay-online {
+  color: #22c55e;
+}
+.relay-offline {
+  color: #64748b;
+}
+.relay-creation-modal {
+  max-width: 500px;
+}
+.relay-creation-modal .secret-display {
+  background: rgba(255,255,255,0.05);
+  border: 1px dashed var(--border, #2a2a4a);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  font-family: monospace;
+  font-size: 0.85rem;
+  word-break: break-all;
+  line-height: 1.6;
+}
+.relay-creation-modal .secret-display .label {
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.78rem;
+  margin-bottom: 0.25rem;
+}
+.relay-creation-modal .warning {
+  color: #f59e0b;
+  font-size: 0.85rem;
+  margin: 0.5rem 0;
+}
+.relay-copy-btn {
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+  background: none;
+  border: none;
+  color: var(--text, #e2e8f0);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.relay-copy-btn:hover {
+  opacity: 1;
+  background: rgba(255,255,255,0.1);
+}

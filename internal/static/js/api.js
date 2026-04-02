@@ -46,5 +46,12 @@ const API = (() => {
     getDashboardStats: () => request('GET', '/admin/dashboard/stats'),
     getDashboardTrends: (days) => request('GET', `/admin/dashboard/trends?days=${days}`),
     getRecentReviews: (limit) => request('GET', `/admin/dashboard/recent-reviews?limit=${limit}`),
+    // Relay
+    getRelayInstances: () => request('GET', '/relay/instances'),
+    createRelayInstance: (body) => request('POST', '/relay/instances', body),
+    deleteRelayInstance: (id) => request('DELETE', '/relay/instances/' + id),
+    testRelayConnection: (body) => request('POST', '/relay/instances/test-connection', body),
+    regenerateRelaySecret: (id) => request('POST', '/relay/instances/' + id + '/regenerate-secret'),
+    testRelayWebhook: (id) => request('POST', '/relay/instances/' + id + '/test-webhook'),
   };
 })();

@@ -193,7 +193,7 @@ func setupTestRouter(pool *pgxpool.Pool, storagePath string) *gin.Engine {
 	writeLimiter := middleware.NewMemoryRateLimiter(1000, 60)
 
 	engine := gin.New()
-	router.Setup(engine, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, uploadLimiter, publicH, githubH, claimH)
+	router.Setup(engine, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, uploadLimiter, publicH, githubH, claimH, nil, nil)
 	return engine
 }
 

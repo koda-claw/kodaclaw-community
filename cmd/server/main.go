@@ -25,6 +25,7 @@ import (
 	"github.com/vanzheng/kodaclaw-community/internal/config"
 	"github.com/vanzheng/kodaclaw-community/internal/handler"
 	"github.com/vanzheng/kodaclaw-community/internal/middleware"
+	"github.com/vanzheng/kodaclaw-community/internal/relay"
 	"github.com/vanzheng/kodaclaw-community/internal/repository"
 	"github.com/vanzheng/kodaclaw-community/internal/router"
 )
@@ -63,6 +64,11 @@ func main() {
 	if err := repository.RunClaimMigrations(ctx, pool); err != nil {
 		log.Fatalf("Failed to run claim migrations: %v", err)
 	}
+	if cfg.RelayEnabled {
+		if err := repository.RunRelayMigrations(ctx, pool); err != nil {
+			log.Fatalf("Failed to run relay migrations: %v", err)
+		}
+	}
 	log.Println("Database migrations complete")
 
 	rdb := redis.NewClient(&redis.Options{
@@ -100,8 +106,18 @@ func main() {
 	githubH := handler.NewGitHubHandler(userRepo)
 	claimH := handler.NewClaimHandler(userRepo)
 
+	var relayH *handler.RelayHandler
+	var webhookH *handler.WebhookHandler
+	if cfg.RelayEnabled {
+		relayRepo := repository.NewRelayInstanceRepository(pool)
+		hub := relay.NewHub()
+		relayH = handler.NewRelayHandler(relayRepo, hub)
+		webhookH = handler.NewWebhookHandler(relayRepo, hub, rdb)
+		log.Println("Relay hub enabled")
+	}
+
 	engine := gin.Default()
-	router.Setup(engine, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, uploadLimiter, publicH, githubH, claimH)
+	router.Setup(engine, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, uploadLimiter, publicH, githubH, claimH, relayH, webhookH)
 
 	srv := &http.Server{
 		Addr:    cfg.Port,

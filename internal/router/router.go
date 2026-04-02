@@ -21,6 +21,8 @@ func Setup(
 	publicH *handler.PublicHandler,
 	githubH *handler.GitHubHandler,
 	claimH *handler.ClaimHandler,
+	relayH *handler.RelayHandler,
+	webhookH *handler.WebhookHandler,
 ) {
 	engine.Use(gin.Recovery())
 	engine.Use(middleware.ErrorHandler())
@@ -153,5 +155,30 @@ func Setup(
 		publicGroup.POST("/claim", claimH.Claim)
 		publicGroup.GET("/stats", publicH.Stats)
 		publicGroup.GET("/users/:username", publicH.UserProfile)
+	}
+
+	if relayH != nil {
+		// Relay instance management (auth required)
+		relayGroup := v1.Group("/relay")
+		relayGroup.Use(middleware.RateLimitMiddleware(writeLimiter, 20))
+		relayGroup.Use(middleware.AuthMiddleware(checker))
+		{
+			relayGroup.POST("/instances", relayH.CreateInstance)
+			relayGroup.GET("/instances", relayH.ListInstances)
+			relayGroup.DELETE("/instances/:id", relayH.DeleteInstance)
+			relayGroup.POST("/instances/test-connection", relayH.TestConnection)
+			relayGroup.POST("/instances/:id/regenerate-secret", relayH.RegenerateSecret)
+			if webhookH != nil {
+				relayGroup.POST("/instances/:id/test-webhook", webhookH.TestWebhook)
+			}
+		}
+
+		// WebSocket relay endpoint (public — auth is in the WS protocol)
+		engine.GET("/ws/relay", relayH.ServeWS)
+	}
+
+	if webhookH != nil {
+		// Incoming webhook endpoint (public — no HTTP auth)
+		v1.POST("/webhook/incoming/:instanceId", webhookH.IncomingWebhook)
 	}
 }
