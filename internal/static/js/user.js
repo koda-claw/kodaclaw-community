@@ -157,7 +157,14 @@ const UserPage = (() => {
     try {
       const me = await API.get('/users/me');
       const u = me.user || me;
-      let url = '/users/' + u.id + '/assets?page=1&page_size=50';
+      // Observer: fetch observed KodaClaw instance's assets
+      let ownerId = u.id;
+      try {
+        const obs = await API.get('/users/me/observed');
+        const instances = obs.instances || [];
+        if (instances.length > 0) ownerId = instances[0].id;
+      } catch (_) {}
+      let url = '/users/' + ownerId + '/assets?page=1&page_size=50';
       if (myAssetsStatus) url += '&status=' + encodeURIComponent(myAssetsStatus);
       const data = await API.get(url);
       const assets = data.assets || data.data || data.items || data || [];
