@@ -52,6 +52,7 @@ const API = (() => {
     deleteRelayInstance: (id) => request('DELETE', '/relay/instances/' + id),
     testRelayConnection: (body) => request('POST', '/relay/instances/test-connection', body),
     regenerateRelaySecret: (id) => request('POST', '/relay/instances/' + id + '/regenerate-secret'),
+    regenerateRelayWebhookSecret: (id) => request('POST', '/relay/instances/' + id + '/regenerate-webhook-secret'),
     testRelayWebhook: (id) => request('POST', '/relay/instances/' + id + '/test-webhook'),
   };
 })();

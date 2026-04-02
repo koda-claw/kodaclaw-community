@@ -168,6 +168,7 @@ func Setup(
 			relayGroup.DELETE("/instances/:id", relayH.DeleteInstance)
 			relayGroup.POST("/instances/test-connection", relayH.TestConnection)
 			relayGroup.POST("/instances/:id/regenerate-secret", relayH.RegenerateSecret)
+		relayGroup.POST("/instances/:id/regenerate-webhook-secret", relayH.RegenerateWebhookSecret)
 			if webhookH != nil {
 				relayGroup.POST("/instances/:id/test-webhook", webhookH.TestWebhook)
 			}

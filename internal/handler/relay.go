@@ -82,13 +82,14 @@ func (h *RelayHandler) CreateInstance(c *gin.Context) {
 	}
 
 	middleware.RespondCreated(c, model.CreateRelayInstanceResponse{
-		ID:           instance.ID,
-		UserID:       instance.UserID,
-		InstanceName: instance.InstanceName,
-		AccountID:    instance.AccountID,
-		SharedSecret: plainSecret, // returned only once
-		IsActive:     instance.IsActive,
-		CreatedAt:    instance.CreatedAt,
+		ID:            instance.ID,
+		UserID:        instance.UserID,
+		InstanceName:  instance.InstanceName,
+		AccountID:     instance.AccountID,
+		SharedSecret:  plainSecret,           // returned only once
+		WebhookSecret: instance.WebhookSecret, // returned only once
+		IsActive:      instance.IsActive,
+		CreatedAt:     instance.CreatedAt,
 	})
 }
 
@@ -235,6 +236,44 @@ func (h *RelayHandler) RegenerateSecret(c *gin.Context) {
 		"id":           instance.ID,
 		"accountId":    instance.AccountID,
 		"sharedSecret": newPlainSecret,
+	})
+}
+
+// RegenerateWebhookSecret generates a new webhook_secret for the given relay instance.
+func (h *RelayHandler) RegenerateWebhookSecret(c *gin.Context) {
+	userID := c.GetString(middleware.ContextUserID)
+	id := c.Param("id")
+
+	instance, err := h.relayRepo.GetRelayInstanceByID(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, repository.ErrRelayInstanceNotFound) {
+			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Instance not found")
+			return
+		}
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get instance")
+		return
+	}
+
+	if instance.UserID != userID {
+		middleware.RespondError(c, http.StatusForbidden, "FORBIDDEN", "Not your instance")
+		return
+	}
+
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to generate secret")
+		return
+	}
+	newSecret := "whsec-" + hex.EncodeToString(b)
+
+	if err := h.relayRepo.UpdateWebhookSecret(c.Request.Context(), id, newSecret); err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update webhook secret")
+		return
+	}
+
+	middleware.RespondOK(c, gin.H{
+		"id":            instance.ID,
+		"webhookSecret": newSecret,
 	})
 }
 

@@ -2,11 +2,16 @@ package handler
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -31,14 +36,27 @@ func NewWebhookHandler(relayRepo repository.RelayInstanceRepository, hub *relay.
 }
 
 // IncomingWebhook handles POST /api/v1/webhook/incoming/:instanceId
-// It is a public endpoint — no auth required.
-// Transparent passthrough mode: raw request body is stored in MetadataJSON.
+// Requires HMAC-SHA256 signature verification via X-Relay-Timestamp and X-Relay-Signature headers.
 func (h *WebhookHandler) IncomingWebhook(c *gin.Context) {
 	instanceID := c.Param("instanceId")
 
 	rawBody, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Failed to read request body")
+		return
+	}
+
+	// Verify HMAC signature headers
+	tsHeader := c.GetHeader("X-Relay-Timestamp")
+	sigHeader := c.GetHeader("X-Relay-Signature")
+	if tsHeader == "" || sigHeader == "" {
+		middleware.RespondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Missing signature headers")
+		return
+	}
+
+	tsInt, err := strconv.ParseInt(tsHeader, 10, 64)
+	if err != nil || math.Abs(float64(time.Now().Unix()-tsInt)) > 300 {
+		middleware.RespondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "timestamp expired")
 		return
 	}
 
@@ -50,6 +68,15 @@ func (h *WebhookHandler) IncomingWebhook(c *gin.Context) {
 			return
 		}
 		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to look up instance")
+		return
+	}
+
+	// Compute expected HMAC-SHA256 signature
+	mac := hmac.New(sha256.New, []byte(instance.WebhookSecret))
+	mac.Write([]byte(tsHeader + "." + string(rawBody)))
+	expectedSig := hex.EncodeToString(mac.Sum(nil))
+	if !hmac.Equal([]byte(sigHeader), []byte(expectedSig)) {
+		middleware.RespondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "invalid signature")
 		return
 	}
 

@@ -441,14 +441,17 @@ const UserPage = (() => {
       overlay.innerHTML = `
         <div class="modal-box relay-creation-modal">
           <h3 class="section-title">实例创建成功</h3>
-          <p class="relay-creation-modal warning">⚠ 共享密钥仅显示一次，请立即保存！</p>
+          <p class="relay-creation-modal warning">⚠ 共享密钥和 Webhook Secret 仅显示一次，请立即保存！</p>
           <div class="secret-display">
             <div class="label">Account ID</div>
             <div>${Components.escHtml(inst.accountId || inst.account_id || '')}&nbsp;${relayCopyBtn(inst.accountId || inst.account_id || '', '复制')}</div>
             <div class="label" style="margin-top:0.6rem">Shared Secret</div>
             <div>${Components.escHtml(inst.sharedSecret || inst.shared_secret || '')}&nbsp;${relayCopyBtn(inst.sharedSecret || inst.shared_secret || '', '复制')}</div>
+            <div class="label" style="margin-top:0.6rem">Webhook Secret</div>
+            <div>${Components.escHtml(inst.webhookSecret || inst.webhook_secret || '')}&nbsp;${relayCopyBtn(inst.webhookSecret || inst.webhook_secret || '', '复制')}</div>
           </div>
           <p style="font-size:0.85rem;color:var(--text-muted,#94a3b8)">将以上信息填入 KodaClaw 的 Relay 频道配置中。</p>
+          <p style="font-size:0.85rem;color:var(--text-muted,#94a3b8);margin-top:0.3rem">Webhook Secret 用于 HMAC 签名验证，调用 Webhook 时需在请求头中携带 <code>X-Relay-Signature</code>。</p>
           <div class="modal-actions">
             <button class="btn btn-primary" id="btn-copy-config">复制配置 JSON</button>
             <button class="btn btn-outline" id="btn-created-close">关闭</button>
@@ -617,6 +620,79 @@ const UserPage = (() => {
       });
     }
 
+    function showRegenerateWebhookSecretModal(inst) {
+      const name = inst.instanceName || inst.instance_name || inst.id;
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.style.display = 'flex';
+      overlay.innerHTML = `
+        <div class="modal-box">
+          <p>重新生成 Webhook 密钥后，旧的密钥将<strong>立即失效</strong>，使用旧密钥的签名请求将被拒绝。确定吗？</p>
+          <p style="font-size:0.85rem;color:var(--text-muted,#94a3b8)">实例: ${Components.escHtml(name)}</p>
+          <div class="modal-actions">
+            <button class="btn btn-danger" id="btn-regen-wsec-confirm">确认重新生成</button>
+            <button class="btn btn-outline" id="btn-regen-wsec-cancel">取消</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+
+      overlay.querySelector('#btn-regen-wsec-cancel').addEventListener('click', () => overlay.remove());
+      overlay.querySelector('#btn-regen-wsec-confirm').addEventListener('click', async () => {
+        const btn = overlay.querySelector('#btn-regen-wsec-confirm');
+        btn.disabled = true;
+        btn.textContent = '生成中...';
+        try {
+          const result = await API.regenerateRelayWebhookSecret(inst.id);
+          overlay.remove();
+          showNewWebhookSecretModal(result);
+        } catch (err) {
+          alert('生成失败: ' + err.message);
+          btn.disabled = false;
+          btn.textContent = '确认重新生成';
+        }
+      });
+    }
+
+    function showNewWebhookSecretModal(result) {
+      const webhookSecret = result.webhookSecret || result.webhook_secret || '';
+      const instId = result.id || '';
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.style.display = 'flex';
+      overlay.innerHTML = `
+        <div class="modal-box relay-creation-modal">
+          <h3 class="section-title">新 Webhook 密钥已生成</h3>
+          <p class="relay-creation-modal warning">⚠ 新 Webhook Secret 仅显示一次，请立即保存！</p>
+          <div class="secret-display">
+            <div class="label">新 Webhook Secret</div>
+            <div>${Components.escHtml(webhookSecret)}&nbsp;${relayCopyBtn(webhookSecret, '复制')}</div>
+          </div>
+          <p style="font-size:0.85rem;color:var(--text-muted,#94a3b8)">请更新所有使用此 Webhook 的外部系统，使用新的密钥生成签名。</p>
+          <div class="modal-actions">
+            <button class="btn btn-outline" id="btn-new-wsec-close">关闭</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      setupRelayCopyBtns(overlay);
+
+      overlay.querySelector('#btn-new-wsec-close').addEventListener('click', () => {
+        overlay.remove();
+        // 更新卡片上的遮罩显示
+        const display = document.querySelector(`#wsec-display-${instId}`);
+        if (display) {
+          display.textContent = 'whsec-****';
+          const toggleBtn = document.querySelector(`.btn-relay-wsec-toggle[data-id="${instId}"]`);
+          if (toggleBtn) {
+            toggleBtn.dataset.secret = webhookSecret;
+            toggleBtn.textContent = '显示';
+          }
+        }
+        refresh();
+      });
+    }
+
     try {
       const instances = await API.getRelayInstances();
       const list = Array.isArray(instances) ? instances : (instances.instances || []);
@@ -642,7 +718,9 @@ const UserPage = (() => {
           const statusLabel = isOnline ? '在线' : '离线';
           const configJson = JSON.stringify({ relayUrl: 'wss://community.ai-koda.com/ws/relay', accountId: accountID });
           const webhookUrl = `https://community.ai-koda.com/api/v1/webhook/incoming/${inst.id}`;
-          const curlExample = `curl -X POST "${webhookUrl}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"text": "hello from external system"}'`;
+          const webhookSecret = inst.webhookSecret || inst.webhook_secret || '';
+          const curlExample = `timestamp=$(date +%s)\nbody='{"text":"hello"}'\nsig=$(printf '%s' "$timestamp.$body" | openssl dgst -sha256 -hmac "YOUR_WEBHOOK_SECRET" | awk '{print $2}')\ncurl -X POST "${webhookUrl}" \\\n  -H "Content-Type: application/json" \\\n  -H "X-Relay-Timestamp: $timestamp" \\\n  -H "X-Relay-Signature: $sig" \\\n  -d "$body"`;
+          const maskedSecret = webhookSecret ? 'whsec-****' : '未设置';
 
           html += `
             <div class="relay-card">
@@ -663,6 +741,11 @@ const UserPage = (() => {
                 <span>Webhook URL: <code>${webhookUrl}</code></span>
                 <button class="relay-copy-btn" data-copy="${webhookUrl}" title="复制 Webhook URL">复制</button>
               </div>
+              <div class="relay-card-meta">
+                <span>Webhook Secret: <code id="wsec-display-${Components.escHtml(inst.id)}">${maskedSecret}</code></span>
+                <button class="relay-copy-btn" data-copy="${Components.escHtml(webhookSecret)}" title="复制 Webhook Secret">复制</button>
+                <button class="btn-relay-wsec-toggle relay-copy-btn" data-id="${Components.escHtml(inst.id)}" data-secret="${Components.escHtml(webhookSecret)}">显示</button>
+              </div>
               <div class="relay-card-meta" style="flex-direction:column;align-items:flex-start;gap:0.4rem">
                 <span style="font-size:0.8rem;color:var(--text-muted,#94a3b8)">向此 URL 发送任意 JSON 即可将事件转发到 KodaClaw</span>
                 <button class="btn btn-sm btn-relay-curl-toggle" data-id="${Components.escHtml(inst.id)}">查看 curl 示例</button>
@@ -673,6 +756,7 @@ const UserPage = (() => {
                 <button class="btn btn-sm btn-relay-test-webhook" data-id="${Components.escHtml(inst.id)}"${isOnline ? '' : ' disabled'}>发送测试消息</button>
                 <button class="btn btn-sm btn-relay-copy-config" data-config="${Components.escHtml(configJson)}">复制配置</button>
                 <button class="btn btn-sm btn-relay-regen" data-id="${Components.escHtml(inst.id)}">重新生成密钥</button>
+                <button class="btn btn-sm btn-relay-regen-wsec" data-id="${Components.escHtml(inst.id)}">重新生成 Webhook 密钥</button>
                 <button class="btn btn-sm btn-danger btn-relay-delete" data-id="${Components.escHtml(inst.id)}" data-name="${Components.escHtml(name)}">删除</button>
               </div>
             </div>
@@ -741,6 +825,27 @@ const UserPage = (() => {
         btn.addEventListener('click', () => {
           const inst = list.find(i => i.id === btn.dataset.id);
           if (inst) showRegenerateModal(inst);
+        });
+      });
+
+      el.querySelectorAll('.btn-relay-regen-wsec').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const inst = list.find(i => i.id === btn.dataset.id);
+          if (inst) showRegenerateWebhookSecretModal(inst);
+        });
+      });
+
+      el.querySelectorAll('.btn-relay-wsec-toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const display = el.querySelector(`#wsec-display-${btn.dataset.id}`);
+          if (!display) return;
+          if (display.textContent === 'whsec-****') {
+            display.textContent = btn.dataset.secret || '未设置';
+            btn.textContent = '隐藏';
+          } else {
+            display.textContent = 'whsec-****';
+            btn.textContent = '显示';
+          }
         });
       });
 

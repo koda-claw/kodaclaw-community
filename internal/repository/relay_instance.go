@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"time"
 
@@ -26,6 +28,7 @@ func RunRelayMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 			updated_at TIMESTAMPTZ DEFAULT NOW()
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_relay_instances_user ON relay_instances(user_id)`,
+		`ALTER TABLE relay_instances ADD COLUMN IF NOT EXISTS webhook_secret VARCHAR(200) NOT NULL DEFAULT ''`,
 	}
 	for _, sql := range migrations {
 		if _, err := pool.Exec(ctx, sql); err != nil {
@@ -42,6 +45,7 @@ type RelayInstanceRepository interface {
 	GetRelayInstanceByAccountID(ctx context.Context, accountID string) (*model.RelayInstance, error)
 	UpdateLastConnectedAt(ctx context.Context, id string, t time.Time) error
 	UpdateSharedSecret(ctx context.Context, id string, hashedSecret string) error
+	UpdateWebhookSecret(ctx context.Context, id string, secret string) error
 	DeleteRelayInstance(ctx context.Context, id string) error
 }
 
@@ -54,11 +58,18 @@ func NewRelayInstanceRepository(pool *pgxpool.Pool) RelayInstanceRepository {
 }
 
 func (r *relayInstanceRepo) CreateRelayInstance(ctx context.Context, instance *model.RelayInstance) error {
+	// Auto-generate webhook_secret
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return err
+	}
+	instance.WebhookSecret = "whsec-" + hex.EncodeToString(b)
+
 	_, err := r.pool.Exec(ctx,
-		`INSERT INTO relay_instances (id, user_id, instance_name, account_id, shared_secret, is_active)
-		 VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)
+		`INSERT INTO relay_instances (id, user_id, instance_name, account_id, shared_secret, webhook_secret, is_active)
+		 VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)
 		 RETURNING id, created_at, updated_at`,
-		instance.UserID, instance.InstanceName, instance.AccountID, instance.SharedSecret, instance.IsActive,
+		instance.UserID, instance.InstanceName, instance.AccountID, instance.SharedSecret, instance.WebhookSecret, instance.IsActive,
 	)
 	if err != nil {
 		return err
@@ -73,7 +84,7 @@ func (r *relayInstanceRepo) CreateRelayInstance(ctx context.Context, instance *m
 
 func (r *relayInstanceRepo) GetRelayInstanceByID(ctx context.Context, id string) (*model.RelayInstance, error) {
 	row := r.pool.QueryRow(ctx,
-		`SELECT id, user_id, instance_name, account_id, shared_secret, is_active, last_connected_at, created_at, updated_at
+		`SELECT id, user_id, instance_name, account_id, shared_secret, webhook_secret, is_active, last_connected_at, created_at, updated_at
 		 FROM relay_instances WHERE id = $1`,
 		id,
 	)
@@ -82,7 +93,7 @@ func (r *relayInstanceRepo) GetRelayInstanceByID(ctx context.Context, id string)
 
 func (r *relayInstanceRepo) ListRelayInstancesByUserID(ctx context.Context, userID string) ([]model.RelayInstance, error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, user_id, instance_name, account_id, shared_secret, is_active, last_connected_at, created_at, updated_at
+		`SELECT id, user_id, instance_name, account_id, shared_secret, webhook_secret, is_active, last_connected_at, created_at, updated_at
 		 FROM relay_instances WHERE user_id = $1 ORDER BY created_at DESC`,
 		userID,
 	)
@@ -95,7 +106,7 @@ func (r *relayInstanceRepo) ListRelayInstancesByUserID(ctx context.Context, user
 	for rows.Next() {
 		var inst model.RelayInstance
 		if err := rows.Scan(
-			&inst.ID, &inst.UserID, &inst.InstanceName, &inst.AccountID, &inst.SharedSecret,
+			&inst.ID, &inst.UserID, &inst.InstanceName, &inst.AccountID, &inst.SharedSecret, &inst.WebhookSecret,
 			&inst.IsActive, &inst.LastConnectedAt, &inst.CreatedAt, &inst.UpdatedAt,
 		); err != nil {
 			return nil, err
@@ -107,7 +118,7 @@ func (r *relayInstanceRepo) ListRelayInstancesByUserID(ctx context.Context, user
 
 func (r *relayInstanceRepo) GetRelayInstanceByAccountID(ctx context.Context, accountID string) (*model.RelayInstance, error) {
 	row := r.pool.QueryRow(ctx,
-		`SELECT id, user_id, instance_name, account_id, shared_secret, is_active, last_connected_at, created_at, updated_at
+		`SELECT id, user_id, instance_name, account_id, shared_secret, webhook_secret, is_active, last_connected_at, created_at, updated_at
 		 FROM relay_instances WHERE account_id = $1`,
 		accountID,
 	)
@@ -130,6 +141,14 @@ func (r *relayInstanceRepo) UpdateSharedSecret(ctx context.Context, id string, h
 	return err
 }
 
+func (r *relayInstanceRepo) UpdateWebhookSecret(ctx context.Context, id string, secret string) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE relay_instances SET webhook_secret = $1, updated_at = NOW() WHERE id = $2`,
+		secret, id,
+	)
+	return err
+}
+
 func (r *relayInstanceRepo) DeleteRelayInstance(ctx context.Context, id string) error {
 	tag, err := r.pool.Exec(ctx, `DELETE FROM relay_instances WHERE id = $1`, id)
 	if err != nil {
@@ -144,7 +163,7 @@ func (r *relayInstanceRepo) DeleteRelayInstance(ctx context.Context, id string) 
 func scanRelayInstance(row pgx.Row) (*model.RelayInstance, error) {
 	var inst model.RelayInstance
 	err := row.Scan(
-		&inst.ID, &inst.UserID, &inst.InstanceName, &inst.AccountID, &inst.SharedSecret,
+		&inst.ID, &inst.UserID, &inst.InstanceName, &inst.AccountID, &inst.SharedSecret, &inst.WebhookSecret,
 		&inst.IsActive, &inst.LastConnectedAt, &inst.CreatedAt, &inst.UpdatedAt,
 	)
 	if err != nil {
