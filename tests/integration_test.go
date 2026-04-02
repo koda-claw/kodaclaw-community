@@ -184,20 +184,24 @@ func setupTestRouter(pool *pgxpool.Pool, storagePath string) *gin.Engine {
 	depRepo := repository.NewAssetDependencyRepository(pool)
 	installRepo := repository.NewAssetInstallRepository(pool)
 
+	auditSvc := service.NewAuditService(nil)
+	activitySvc := service.NewActivityService(nil)
+
 	authH := handler.NewAuthHandler(userRepo)
-	assetH := handler.NewAssetHandlerFull(assetRepo, versionRepo, userRepo, favoriteRepo, depRepo, installRepo, storagePath)
-	reviewH := handler.NewReviewHandler(reviewRepo, assetRepo)
-	adminH := handler.NewAdminHandler(assetRepo, notificationSvc, versionRepo, userRepo, storagePath)
+	assetH := handler.NewAssetHandlerFull(assetRepo, versionRepo, userRepo, favoriteRepo, depRepo, installRepo, storagePath, activitySvc)
+	reviewH := handler.NewReviewHandler(reviewRepo, assetRepo, activitySvc)
+	adminH := handler.NewAdminHandler(assetRepo, notificationSvc, versionRepo, userRepo, storagePath, auditSvc)
 	userH := handler.NewUserHandlerWithNotifications(userRepo, assetRepo, favoriteRepo, notificationRepo)
-	publicH := handler.NewPublicHandler(assetRepo, versionRepo, reviewRepo, userRepo, storagePath)
-	githubH := handler.NewGitHubHandler(userRepo)
-	bindH := handler.NewBindHandler(userRepo)
+	publicH := handler.NewPublicHandler(assetRepo, versionRepo, reviewRepo, userRepo, storagePath, activitySvc)
+
 
 	readLimiter := middleware.NewMemoryRateLimiter(1000, 60)
 	uploadLimiter := middleware.NewMemoryRateLimiter(1000, 60)
 	writeLimiter := middleware.NewMemoryRateLimiter(1000, 60)
 
 	engine := gin.New()
+	githubH := handler.NewGitHubHandler(userRepo)
+	bindH := handler.NewBindHandler(userRepo, relayRepo, hub)
 	router.Setup(engine, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, uploadLimiter, publicH, githubH, bindH, nil, nil)
 	return engine
 }
