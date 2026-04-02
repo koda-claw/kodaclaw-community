@@ -84,7 +84,7 @@ func Setup(
 		readGroup.GET("/users/me", userH.GetMe)
 		readGroup.GET("/users/me/favorites", userH.ListFavorites)
 		readGroup.GET("/users/me/notifications", userH.ListNotifications)
-		readGroup.GET("/users/me/instances", bindH.GetObservedInstance)
+		readGroup.GET("/users/me/observed", bindH.GetObservedInstance)
 		readGroup.GET("/users/me/instances", func(c *gin.Context) { c.Redirect(302, "/api/v1/users/me/observed") })
 		readGroup.GET("/users/:id", userH.GetByID)
 		readGroup.GET("/users/:id/assets", userH.ListAssets)
