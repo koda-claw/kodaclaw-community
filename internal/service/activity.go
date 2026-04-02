@@ -20,6 +20,9 @@ func NewActivityService(repo *repository.UserActivityRepo) *ActivityService {
 
 // Record writes a user activity entry. Errors are only slog.Warn'd, never returned.
 func (s *ActivityService) Record(ctx context.Context, userID uuid.UUID, activityType string, assetID *uuid.UUID) {
+	if s.repo == nil {
+		return
+	}
 	a := &model.UserActivity{
 		ID:           uuid.New(),
 		UserID:       userID,

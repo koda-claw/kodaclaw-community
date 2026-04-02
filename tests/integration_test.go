@@ -175,6 +175,8 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 	}
 
 	// Clean up test data (order matters for FK)
+	pool.Exec(ctx, "DELETE FROM relay_webhook_keys")
+	pool.Exec(ctx, "DELETE FROM relay_instances")
 	pool.Exec(ctx, "DELETE FROM audit_logs")
 	pool.Exec(ctx, "DELETE FROM user_activities")
 	pool.Exec(ctx, "DELETE FROM notifications")
