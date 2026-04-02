@@ -171,20 +171,6 @@ func buildBindPageHTML(token, baseURL string) string {
           <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
           使用 GitHub 登录并绑定
         </button>
-        <div style="margin-top:12px"><button class="toggle-manual" id="toggle-manual">已有账号？手动输入 API Key</button></div>
-      </div>
-
-      <div class="manual-section" id="manual-section">
-        <div class="field">
-          <label>绑定码</label>
-          <input type="text" id="input-token" maxlength="6" placeholder="6 位绑定码（如：AB12CD）" value="` + token + `" />
-        </div>
-        <div class="field">
-          <label>API Key</label>
-          <input type="password" id="input-apikey" placeholder="登录后可在个人中心查看" />
-        </div>
-        <button class="btn-bind" id="btn-bind">确认绑定</button>
-        <div class="msg" id="manual-msg"></div>
       </div>
     </div>
 
@@ -211,11 +197,6 @@ func buildBindPageHTML(token, baseURL string) string {
       window.location.href = 'https://github.com/login/oauth/authorize?client_id=' + clientId + '&redirect_uri=' + encodeURIComponent(BASE + '/api/v1/auth/github/callback') + '&scope=user:read&state=' + redirect;
     });
 
-    // Toggle manual section
-    document.getElementById('toggle-manual').addEventListener('click', () => {
-      document.getElementById('manual-section').classList.toggle('show');
-    });
-
     // Auto bind after GitHub OAuth callback (key stored, token in URL)
     function tryAutoBind() {
       if (savedKey && TOKEN) {
@@ -227,19 +208,15 @@ func buildBindPageHTML(token, baseURL string) string {
 
     // Check URL params for OAuth callback signals
     const params = new URLSearchParams(window.location.search);
+    const urlToken = params.get('github_token');
     if (params.get('bound') === 'true') {
       showResult('绑定成功！');
+    } else if (urlToken && TOKEN) {
+      localStorage.setItem('api_key', urlToken);
+      doBind(TOKEN, urlToken);
     } else if (savedKey && TOKEN) {
       tryAutoBind();
     }
-
-    // Manual bind
-    document.getElementById('btn-bind').addEventListener('click', () => {
-      const t = document.getElementById('input-token').value.trim().toUpperCase();
-      const k = document.getElementById('input-apikey').value.trim();
-      if (!t || !k) { showManualMsg('请填写绑定码和 API Key', 'error'); return; }
-      doBind(t, k);
-    });
 
     function doBind(token, apiKey) {
       fetch(BASE + '/api/v1/public/bind', {
