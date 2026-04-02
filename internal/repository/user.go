@@ -176,7 +176,7 @@ func (r *userRepo) BindObserver(ctx context.Context, kodaclawUserID, observerUse
 
 func (r *userRepo) GetObservedInstance(ctx context.Context, observerUserID uuid.UUID) ([]model.User, error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, username, user_type, instance_id, display_name, description, observer_id, bound_at, created_at, updated_at
+		`SELECT id, username, user_type, instance_id, display_name, description, is_admin, observer_id, bound_at, created_at, updated_at
 		 FROM users WHERE observer_id = $1 AND user_type = 'kodaclaw' ORDER BY bound_at DESC`, observerUserID)
 	if err != nil {
 		return nil, err
@@ -187,7 +187,7 @@ func (r *userRepo) GetObservedInstance(ctx context.Context, observerUserID uuid.
 	for rows.Next() {
 		var u model.User
 		if err := rows.Scan(&u.ID, &u.Username, &u.UserType, &u.InstanceID, &u.DisplayName,
-			&u.Description, &u.ObserverID, &u.BoundAt, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			&u.Description, &u.IsAdmin, &u.ObserverID, &u.BoundAt, &u.CreatedAt, &u.UpdatedAt); err != nil {
 			return nil, err
 		}
 		users = append(users, u)
