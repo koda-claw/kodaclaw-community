@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"net/url"
 	"os"
 	"strconv"
@@ -90,7 +91,18 @@ func (h *GitHubHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	c.Redirect(http.StatusFound, "/?github_token="+url.QueryEscape(apiKey))
+	// Respect state parameter for OAuth redirect back
+	state := c.Query("state")
+	if state != "" {
+		// Redirect back to the original page (e.g. /bind?token=xxx) with the API key
+		sep := "?"
+		if strings.Contains(state, "?") {
+			sep = "&"
+		}
+		c.Redirect(http.StatusFound, state+sep+"github_token="+url.QueryEscape(apiKey))
+	} else {
+		c.Redirect(http.StatusFound, "/?github_token="+url.QueryEscape(apiKey))
+	}
 }
 
 type githubTokenResponse struct {
