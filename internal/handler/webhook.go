@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -18,17 +19,6 @@ import (
 
 const webhookOfflineTTL = 24 * time.Hour
 
-// IncomingWebhookPayload is the body sent by external systems.
-type IncomingWebhookPayload struct {
-	EventType        string              `json:"eventType"`
-	ThreadType       string              `json:"threadType"`
-	ExternalThreadID string              `json:"externalThreadId"`
-	Text             string              `json:"text"`
-	Sender           relay.EventSender   `json:"sender"`
-	OccurredAt       time.Time           `json:"occurredAt"`
-	CorrelationID    string              `json:"correlationId"`
-	MetadataJSON     string              `json:"metadataJson"`
-}
 
 type WebhookHandler struct {
 	relayRepo repository.RelayInstanceRepository
@@ -42,12 +32,13 @@ func NewWebhookHandler(relayRepo repository.RelayInstanceRepository, hub *relay.
 
 // IncomingWebhook handles POST /api/v1/webhook/incoming/:instanceId
 // It is a public endpoint — no auth required.
+// Transparent passthrough mode: raw request body is stored in MetadataJSON.
 func (h *WebhookHandler) IncomingWebhook(c *gin.Context) {
 	instanceID := c.Param("instanceId")
 
-	var payload IncomingWebhookPayload
-	if err := c.ShouldBindJSON(&payload); err != nil {
-		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+	rawBody, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Failed to read request body")
 		return
 	}
 
@@ -63,21 +54,17 @@ func (h *WebhookHandler) IncomingWebhook(c *gin.Context) {
 	}
 
 	eventID := uuid.New().String()
-	if payload.OccurredAt.IsZero() {
-		payload.OccurredAt = time.Now().UTC()
-	}
 
 	frame := relay.EventFrame{
 		Type:             relay.FrameTypeEvent,
 		EventID:          eventID,
-		EventType:        payload.EventType,
-		ThreadType:       payload.ThreadType,
-		ExternalThreadID: payload.ExternalThreadID,
-		Text:             payload.Text,
-		Sender:           payload.Sender,
-		OccurredAt:       payload.OccurredAt,
-		CorrelationID:    payload.CorrelationID,
-		MetadataJSON:     payload.MetadataJSON,
+		EventType:        "",
+		ThreadType:       "",
+		ExternalThreadID: "webhook-" + eventID,
+		Text:             "",
+		Sender:           relay.EventSender{ID: "webhook", DisplayName: "Webhook"},
+		OccurredAt:       time.Now().UTC(),
+		MetadataJSON:     string(rawBody),
 	}
 
 	delivered := h.hub.OnEvent(instance.AccountID, frame)
