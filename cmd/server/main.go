@@ -28,6 +28,7 @@ import (
 	"github.com/vanzheng/kodaclaw-community/internal/relay"
 	"github.com/vanzheng/kodaclaw-community/internal/repository"
 	"github.com/vanzheng/kodaclaw-community/internal/router"
+	"github.com/vanzheng/kodaclaw-community/internal/service"
 )
 
 func main() {
@@ -97,10 +98,19 @@ func main() {
 	depRepo := repository.NewAssetDependencyRepository(pool)
 	installRepo := repository.NewAssetInstallRepository(pool)
 
+	var relayRepo repository.RelayInstanceRepository
+	var hub *relay.Hub
+	if cfg.RelayEnabled {
+		relayRepo = repository.NewRelayInstanceRepository(pool)
+		hub = relay.NewHub()
+	}
+
+	notificationSvc := service.NewNotificationService(notificationRepo, relayRepo, hub)
+
 	authH := handler.NewAuthHandler(userRepo)
 	assetH := handler.NewAssetHandlerFull(assetRepo, versionRepo, userRepo, favoriteRepo, depRepo, installRepo, cfg.AssetStoragePath)
 	reviewH := handler.NewReviewHandler(reviewRepo, assetRepo)
-	adminH := handler.NewAdminHandler(assetRepo, notificationRepo, versionRepo, userRepo, cfg.AssetStoragePath)
+	adminH := handler.NewAdminHandler(assetRepo, notificationSvc, versionRepo, userRepo, cfg.AssetStoragePath)
 	userH := handler.NewUserHandlerWithNotifications(userRepo, assetRepo, favoriteRepo, notificationRepo)
 	publicH := handler.NewPublicHandler(assetRepo, versionRepo, reviewRepo, userRepo, cfg.AssetStoragePath)
 	githubH := handler.NewGitHubHandler(userRepo)
@@ -109,9 +119,7 @@ func main() {
 	var relayH *handler.RelayHandler
 	var webhookH *handler.WebhookHandler
 	if cfg.RelayEnabled {
-		relayRepo := repository.NewRelayInstanceRepository(pool)
 		webhookKeyRepo := repository.NewWebhookKeyRepository(pool)
-		hub := relay.NewHub()
 		relayH = handler.NewRelayHandler(relayRepo, webhookKeyRepo, hub)
 		webhookH = handler.NewWebhookHandler(relayRepo, webhookKeyRepo, hub, rdb)
 		log.Println("Relay hub enabled")

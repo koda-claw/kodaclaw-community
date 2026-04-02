@@ -14,23 +14,24 @@ import (
 	"github.com/vanzheng/kodaclaw-community/internal/middleware"
 	"github.com/vanzheng/kodaclaw-community/internal/model"
 	"github.com/vanzheng/kodaclaw-community/internal/repository"
+	"github.com/vanzheng/kodaclaw-community/internal/service"
 )
 
 type AdminHandler struct {
-	assetRepo        repository.AssetRepository
-	notificationRepo repository.NotificationRepository
-	versionRepo      repository.AssetVersionRepository
-	userRepo         repository.UserRepository
-	storagePath      string
+	assetRepo       repository.AssetRepository
+	notificationSvc *service.NotificationService
+	versionRepo     repository.AssetVersionRepository
+	userRepo        repository.UserRepository
+	storagePath     string
 }
 
-func NewAdminHandler(assetRepo repository.AssetRepository, notificationRepo repository.NotificationRepository, versionRepo repository.AssetVersionRepository, userRepo repository.UserRepository, storagePath string) *AdminHandler {
+func NewAdminHandler(assetRepo repository.AssetRepository, notificationSvc *service.NotificationService, versionRepo repository.AssetVersionRepository, userRepo repository.UserRepository, storagePath string) *AdminHandler {
 	return &AdminHandler{
-		assetRepo:        assetRepo,
-		notificationRepo: notificationRepo,
-		versionRepo:      versionRepo,
-		userRepo:         userRepo,
-		storagePath:      storagePath,
+		assetRepo:       assetRepo,
+		notificationSvc: notificationSvc,
+		versionRepo:     versionRepo,
+		userRepo:        userRepo,
+		storagePath:     storagePath,
 	}
 }
 
@@ -148,7 +149,7 @@ func (h *AdminHandler) Approve(c *gin.Context) {
 		Message:        &msg,
 		RelatedAssetID: &asset.ID,
 	}
-	_ = h.notificationRepo.Create(c.Request.Context(), n)
+	_ = h.notificationSvc.CreateAndNotify(c.Request.Context(), n)
 
 	middleware.RespondOK(c, gin.H{"message": "Asset approved", "id": id})
 }
@@ -219,7 +220,7 @@ func (h *AdminHandler) Reject(c *gin.Context) {
 		Message:        &msg,
 		RelatedAssetID: &asset.ID,
 	}
-	_ = h.notificationRepo.Create(c.Request.Context(), n)
+	_ = h.notificationSvc.CreateAndNotify(c.Request.Context(), n)
 
 	middleware.RespondOK(c, gin.H{"message": "Asset rejected", "id": id, "reason": reason})
 }
@@ -377,7 +378,7 @@ func (h *AdminHandler) ApproveVersion(c *gin.Context) {
 		Message:        &msg,
 		RelatedAssetID: &ver.AssetID,
 	}
-	_ = h.notificationRepo.Create(c.Request.Context(), n)
+	_ = h.notificationSvc.CreateAndNotify(c.Request.Context(), n)
 
 	middleware.RespondOK(c, gin.H{
 		"message":  "Version approved",
@@ -445,7 +446,7 @@ func (h *AdminHandler) RejectVersion(c *gin.Context) {
 		Message:        &msg,
 		RelatedAssetID: &ver.AssetID,
 	}
-	_ = h.notificationRepo.Create(c.Request.Context(), n)
+	_ = h.notificationSvc.CreateAndNotify(c.Request.Context(), n)
 
 	middleware.RespondOK(c, gin.H{
 		"message":  "Version rejected",
