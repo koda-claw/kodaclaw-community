@@ -444,7 +444,7 @@ const UserPage = (() => {
           <p class="relay-creation-modal warning">⚠ 共享密钥仅显示一次，请立即保存！</p>
           <div class="secret-display">
             <div class="label">Account ID</div>
-            <div>${Components.escHtml(inst.accountID || inst.account_id || '')}&nbsp;${relayCopyBtn(inst.accountID || inst.account_id || '', '复制')}</div>
+            <div>${Components.escHtml(inst.accountId || inst.account_id || '')}&nbsp;${relayCopyBtn(inst.accountId || inst.account_id || '', '复制')}</div>
             <div class="label" style="margin-top:0.6rem">Shared Secret</div>
             <div>${Components.escHtml(inst.sharedSecret || inst.shared_secret || '')}&nbsp;${relayCopyBtn(inst.sharedSecret || inst.shared_secret || '', '复制')}</div>
           </div>
@@ -500,7 +500,7 @@ const UserPage = (() => {
     }
 
     function showTestConnectionModal(inst) {
-      const accountID = inst.accountID || inst.account_id || '';
+      const accountID = inst.accountId || inst.account_id || '';
       const overlay = document.createElement('div');
       overlay.className = 'modal-overlay';
       overlay.style.display = 'flex';
@@ -634,7 +634,7 @@ const UserPage = (() => {
       } else {
         list.forEach(inst => {
           const name = inst.instanceName || inst.instance_name || inst.id;
-          const accountID = inst.accountID || inst.account_id || '';
+          const accountID = inst.accountId || inst.account_id || '';
           const isOnline = inst.isOnline;
           const lastConn = inst.lastConnectedAt || inst.last_connected_at;
           const createdAt = inst.createdAt || inst.created_at;
