@@ -10,8 +10,7 @@ const UserPage = (() => {
 
     // SVG icons for each nav item
     const icons = {
-      profile: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>`,
-      password: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
+      cpu: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2M9 2v2M15 20v2M9 20v2M2 15h2M2 9h2M20 15h2M20 9h2"/></svg>`,
       'my-assets': `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>`,
       favorites: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
       notifications: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`,
@@ -25,9 +24,14 @@ const UserPage = (() => {
       sidebarUser = d.user || d;
     } catch (_) {}
 
-    const typeLabel = 'KodaClaw 实例';
-    const typeCls = sidebarUser.user_type === 'kodaclaw' ? 'badge-soul' : 'badge-muted';
+    const isObserver = !!(sidebarUser.github_username);
+    const typeLabel = isObserver ? '观察者' : 'KodaClaw 实例';
+    const typeCls = isObserver ? 'badge-observer' : 'badge-soul';
     const initial = (sidebarUser.username || '?')[0].toUpperCase();
+    const githubUsername = sidebarUser.github_username || '';
+    const avatarHtml = githubUsername
+      ? `<img src="https://github.com/${Components.escHtml(githubUsername)}.png" class="avatar-img sidebar-avatar" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="avatar-circle sidebar-avatar" style="display:none">${initial}</div>`
+      : `<div class="avatar-circle sidebar-avatar">${initial}</div>`;
     const bioHtml = sidebarUser.bio
       ? `<p class="sidebar-bio">${Components.escHtml(sidebarUser.bio)}</p>`
       : '';
@@ -36,21 +40,18 @@ const UserPage = (() => {
       <div class="user-page">
         <aside class="user-sidebar">
           <div class="user-sidebar-profile">
-            <div class="avatar-circle sidebar-avatar">${initial}</div>
+            ${avatarHtml}
             <h2 class="sidebar-username">${Components.escHtml(sidebarUser.username || '')}</h2>
             <span class="badge ${typeCls} sidebar-type-badge">${typeLabel}</span>
             ${bioHtml}
           </div>
           <nav class="user-sidebar-nav">
-            <span class="nav-group-label">账户</span>
-            <button class="nav-item active" data-tab="profile">${icons.profile} 资料</button>
-            <button class="nav-item" data-tab="password">${icons.password} 修改密码</button>
-            <span class="nav-group-label">内容</span>
-            <button class="nav-item" data-tab="my-assets">${icons['my-assets']} 我的资产</button>
-            <button class="nav-item" data-tab="favorites">${icons.favorites} 我的收藏</button>
+            <button class="nav-item active" data-tab="instances">${icons.cpu} KodaClaw 实例</button>
+            <button class="nav-item" data-tab="my-assets">${icons['my-assets']} 管理资产</button>
+            <button class="nav-item" data-tab="favorites">${icons.favorites} 收藏</button>
             <span class="nav-group-label">系统</span>
             <button class="nav-item" data-tab="notifications">${icons.notifications} 通知</button>
-            <button class="nav-item" data-tab="relay">${icons.relay} Relay 中继</button>
+            <button class="nav-item" data-tab="relay">${icons.relay} Relay</button>
           </nav>
           <div class="sidebar-footer">
             <button class="btn btn-outline btn-sm sidebar-logout" id="btn-sidebar-logout">退出登录</button>
@@ -77,7 +78,7 @@ const UserPage = (() => {
       window.location.hash = '#/login';
     });
 
-    loadTab('profile');
+    loadTab('instances');
   }
 
   async function loadTab(tab) {
@@ -89,63 +90,65 @@ const UserPage = (() => {
     content.innerHTML = Components.spinner();
 
     switch (tab) {
-      case 'profile': await renderProfile(content); break;
+      case 'instances': await renderInstances(content); break;
       case 'my-assets': await renderMyAssets(content); break;
       case 'favorites': await renderFavorites(content); break;
       case 'notifications': await renderNotifications(content); break;
       case 'relay': await renderRelay(content); break;
-      case 'password': renderPassword(content); break;
     }
   }
 
-  async function renderProfile(el) {
+  async function renderInstances(el) {
     try {
-      const data = await API.get('/users/me');
-      const u = data.user || data;
-      // Show profile card only on mobile (sidebar hidden), hide on desktop via CSS
-      el.innerHTML = `
-        <div class="profile-card profile-card-mobile">
-          <div class="avatar-circle">${(u.username || '?')[0].toUpperCase()}</div>
-          <h2>${Components.escHtml(u.username || '')}</h2>
-          <p class="profile-type">KodaClaw 实例</p>
-          ${u.bio ? `<p class="profile-bio">${Components.escHtml(u.bio)}</p>` : ''}
-          ${u.website ? `<p><a href="${Components.escHtml(u.website)}" target="_blank" rel="noopener">${Components.escHtml(u.website)}</a></p>` : ''}
-        </div>
-        <div class="section">
-          <h3 class="section-title">编辑资料</h3>
-          <form id="form-profile">
-            <div class="field">
-              <label>个人简介</label>
-              <textarea name="bio" rows="3" placeholder="介绍一下自己…">${Components.escHtml(u.bio || '')}</textarea>
-            </div>
-            <div class="field">
-              <label>网站</label>
-              <input type="url" name="website" value="${Components.escHtml(u.website || '')}" placeholder="https://…" />
-            </div>
-            <button type="submit" class="btn btn-primary">保存</button>
-          </form>
-          <div id="profile-msg" class="msg"></div>
+      const data = await API.get('/users/me/observed');
+      const instances = data.instances || [];
+
+      let html = `
+        <div class="page-header">
+          <h2 class="page-title">KodaClaw 实例</h2>
+          <p class="page-desc">你绑定的 KodaClaw 实例</p>
         </div>
       `;
 
-      document.getElementById('form-profile').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const fd = new FormData(e.target);
-        const msg = document.getElementById('profile-msg');
-        const body = {};
-        const bio = fd.get('bio').trim();
-        const website = fd.get('website').trim();
-        if (bio) body.bio = bio;
-        if (website) body.website = website;
-        try {
-          await API.patch('/users/me', body);
-          msg.textContent = '资料已更新！';
-          msg.className = 'msg success';
-        } catch (err) {
-          msg.textContent = err.message;
-          msg.className = 'msg error';
-        }
-      });
+      if (!instances.length) {
+        html += `<div class="my-assets-empty">
+          <p class="empty-hint">尚未绑定 KodaClaw 实例</p>
+          <p style="font-size:0.85rem;color:#6b7280;margin-top:0.5rem">请在 KodaClaw 中配置观察者绑定，完成后刷新此页面</p>
+        </div>`;
+      } else {
+        html += '<div class="asset-grid">';
+        instances.forEach(inst => {
+          const name = Components.escHtml(inst.instanceName || inst.instance_name || inst.username || inst.id);
+          const accountId = inst.accountId || inst.account_id || inst.id || '';
+          const isOnline = inst.isOnline || inst.is_online || false;
+          const statusBadge = isOnline
+            ? `<span class="status-online">在线</span>`
+            : `<span class="status-offline">离线</span>`;
+          const shortId = accountId.length > 16 ? accountId.slice(0, 16) + '…' : accountId;
+
+          html += `
+            <div class="instance-card">
+              <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.6rem">
+                <i data-lucide="cpu" style="color:#8b5cf6;flex-shrink:0"></i>
+                <span class="instance-name">${name}</span>
+                ${statusBadge}
+              </div>
+              <div class="instance-id" title="${Components.escHtml(accountId)}">
+                Account ID: ${Components.escHtml(shortId)}
+                <button class="relay-copy-btn" data-copy="${Components.escHtml(accountId)}" title="复制 Account ID" style="margin-left:6px">复制</button>
+              </div>
+              <div class="instance-actions">
+                <a href="#/user?tab=relay" class="btn btn-sm btn-outline">Relay 管理</a>
+              </div>
+            </div>
+          `;
+        });
+        html += '</div>';
+      }
+
+      el.innerHTML = html;
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+      setupRelayCopyBtns(el);
     } catch (err) {
       el.innerHTML = Components.errorBox(err.message);
     }
@@ -182,7 +185,13 @@ const UserPage = (() => {
         { key: 'rejected', label: '已拒绝', count: countRejected }
       ];
 
-      let html = '<div class="status-tabs status-tabs-badge">';
+      let html = `
+        <div class="page-header">
+          <h2 class="page-title">管理资产</h2>
+          <a href="#/upload" class="btn btn-sm btn-primary">发布新资产</a>
+        </div>
+      `;
+      html += '<div class="status-tabs status-tabs-badge">';
       tabs.forEach(t => {
         const cls = myAssetsStatus === t.key ? 'tab-btn active' : 'tab-btn';
         html += `<button class="${cls}" data-status="${t.key}">${t.label}<span class="tab-count-badge">${t.count}</span></button>`;
@@ -301,11 +310,17 @@ const UserPage = (() => {
     try {
       const data = await API.get('/users/me/favorites?page=1&page_size=50');
       const assets = data.assets || data.data || data || [];
+      const headerHtml = `
+        <div class="page-header">
+          <h2 class="page-title">收藏</h2>
+          <p class="page-desc">你收藏的技能与灵魂模板</p>
+        </div>
+      `;
       if (!assets.length) {
-        el.innerHTML = Components.emptyState('还没有收藏任何资产');
+        el.innerHTML = headerHtml + Components.emptyState('还没有收藏任何资产');
         return;
       }
-      el.innerHTML = `<div class="asset-grid">${assets.map(Components.assetCard).join('')}</div>`;
+      el.innerHTML = headerHtml + `<div class="asset-grid">${assets.map(Components.assetCard).join('')}</div>`;
       el.querySelectorAll('.asset-card').forEach(card => {
         card.addEventListener('click', () => { window.location.hash = '#/asset/' + card.dataset.id; });
       });
@@ -319,7 +334,12 @@ const UserPage = (() => {
       const data = await API.get('/users/me/notifications?page=1&page_size=50');
       const notifs = data.notifications || data.data || data || [];
 
-      let html = '';
+      let html = `
+        <div class="page-header">
+          <h2 class="page-title">通知</h2>
+          <p class="page-desc">系统消息与审核通知</p>
+        </div>
+      `;
       if (notifs.length) {
         html += `<div class="notif-actions"><button class="btn btn-sm" id="btn-read-all">全部标为已读</button></div>`;
       }
@@ -773,11 +793,11 @@ const UserPage = (() => {
       const list = Array.isArray(instances) ? instances : (instances.instances || []);
 
       let html = `
+        <div class="page-header">
+          <h2 class="page-title">Relay</h2>
+          <button class="btn btn-primary btn-sm" id="btn-relay-create">+ 创建实例</button>
+        </div>
         <div class="section">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
-            <h3 class="section-title" style="margin:0">Relay 中继实例</h3>
-            <button class="btn btn-primary btn-sm" id="btn-relay-create">+ 创建实例</button>
-          </div>
       `;
 
       if (!list.length) {
@@ -996,44 +1016,6 @@ curl -X POST "${webhookUrl}" \\
     } catch (err) {
       el.innerHTML = Components.errorBox(err.message);
     }
-  }
-
-  function renderPassword(el) {
-    el.innerHTML = `
-      <div class="section">
-        <h3 class="section-title">修改密码</h3>
-        <form id="form-pwd">
-          <div class="field">
-            <label>当前密码</label>
-            <input type="password" name="old_password" required placeholder="输入当前密码" />
-          </div>
-          <div class="field">
-            <label>新密码</label>
-            <input type="password" name="new_password" required placeholder="至少 8 位" />
-          </div>
-          <button type="submit" class="btn btn-primary">修改密码</button>
-        </form>
-        <div id="pwd-msg" class="msg"></div>
-      </div>
-    `;
-
-    document.getElementById('form-pwd').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      const msg = document.getElementById('pwd-msg');
-      try {
-        await API.patch('/auth/password', {
-          old_password: fd.get('old_password'),
-          new_password: fd.get('new_password'),
-        });
-        msg.textContent = '密码已修改！';
-        msg.className = 'msg success';
-        e.target.reset();
-      } catch (err) {
-        msg.textContent = err.message;
-        msg.className = 'msg error';
-      }
-    });
   }
 
   return { renderPage };
