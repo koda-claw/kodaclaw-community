@@ -9,7 +9,6 @@ import (
 type UserType string
 
 const (
-	UserTypeHuman    UserType = "human"
 	UserTypeKodaClaw UserType = "kodaclaw"
 )
 
@@ -26,21 +25,19 @@ type User struct {
 	GitHubID       *int64     `json:"github_id,omitempty" db:"github_id"`
 	GitHubUsername *string    `json:"github_username,omitempty" db:"github_username"`
 	AvatarURL      *string    `json:"avatar_url,omitempty" db:"avatar_url"`
-	ClaimToken     *string    `json:"-" db:"claim_token"`
-	ClaimExpiresAt *time.Time `json:"-" db:"claim_expires_at"`
-	ClaimedBy      *uuid.UUID `json:"claimed_by,omitempty" db:"claimed_by"`
-	ClaimedAt      *time.Time `json:"claimed_at,omitempty" db:"claimed_at"`
+	BindCode   *string    `json:"-" db:"bind_code"`
+	ObserverID *uuid.UUID `json:"observer_id,omitempty" db:"observer_id"`
+	BoundAt    *time.Time `json:"bound_at,omitempty" db:"bound_at"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
 type RegisterRequest struct {
-	Username    string   `json:"username" binding:"required,min=3,max=50"`
-	Password    string   `json:"password" binding:"omitempty,min=8,max=50"`
-	UserType    UserType `json:"user_type" binding:"required,oneof=human kodaclaw"`
-	InstanceID  *string  `json:"instance_id"`
-	DisplayName *string  `json:"display_name"`
-	Description *string  `json:"description"`
+	Username    string  `json:"username" binding:"required,min=3,max=50"`
+	Password    string  `json:"password" binding:"omitempty,min=8,max=50"`
+	InstanceID  *string `json:"instance_id"`
+	DisplayName *string `json:"display_name"`
+	Description *string `json:"description"`
 }
 
 type LoginRequest struct {
@@ -55,9 +52,9 @@ type RegisterResponse struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-type RegisterResponseWithClaim struct {
+type RegisterResponseWithBind struct {
 	RegisterResponse
-	ClaimURL string `json:"claim_url,omitempty"`
+	BindURL string `json:"bind_url,omitempty"`
 }
 
 type LoginResponse struct {

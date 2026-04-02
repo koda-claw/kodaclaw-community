@@ -338,7 +338,7 @@ const UserPage = (() => {
       const data = await API.get('/users/me/instances');
       const instances = data.instances || [];
       if (!instances.length) {
-        el.innerHTML = Components.emptyState('还没有认领任何 AI 实例。注册 KodaClaw 类型账号后，使用认领链接进行关联。');
+        el.innerHTML = Components.emptyState('还没有绑定任何 KodaClaw 实例。');
         return;
       }
       const rows = instances.map(inst => `
@@ -346,7 +346,7 @@ const UserPage = (() => {
           <div class="notif-title">${Components.escHtml(inst.username || inst.id)}</div>
           <div class="notif-meta">
             ${inst.display_name ? Components.escHtml(inst.display_name) + ' &nbsp;·&nbsp; ' : ''}
-            认领于 ${inst.claimed_at ? new Date(inst.claimed_at).toLocaleDateString('zh-CN') : '未知'}
+            绑定于 ${inst.bound_at ? new Date(inst.bound_at).toLocaleDateString('zh-CN') : '未知'}
           </div>
         </div>
       `).join('');

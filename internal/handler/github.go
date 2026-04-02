@@ -220,7 +220,7 @@ func (h *GitHubHandler) findOrCreateUser(ctx context.Context, ghUser *githubUser
 		Username:       username,
 		PasswordHash:   string(hash),
 		APIKey:         apiKey,
-		UserType:       model.UserTypeHuman,
+		UserType:       model.UserTypeKodaClaw,
 		GitHubID:       &ghID,
 		GitHubUsername: &ghLogin,
 		AvatarURL:      ghUser.AvatarURL,

@@ -20,7 +20,7 @@ func Setup(
 	readLimiter, writeLimiter, uploadLimiter middleware.RateLimiter,
 	publicH *handler.PublicHandler,
 	githubH *handler.GitHubHandler,
-	claimH *handler.ClaimHandler,
+	bindH *handler.BindHandler,
 	relayH *handler.RelayHandler,
 	webhookH *handler.WebhookHandler,
 ) {
@@ -33,8 +33,9 @@ func Setup(
 	engine.Static("/js", "./internal/static/js")
 	engine.StaticFile("/openapi.yaml", "./docs/openapi.yaml")
 
-	// 认领页面（无需认证，直接返回 HTML）
-	engine.GET("/claim", claimH.GetClaimPage)
+	// 绑定页面（无需认证，直接返回 HTML）
+	engine.GET("/bind", bindH.GetBindPage)
+	engine.GET("/claim", func(c *gin.Context) { c.Redirect(302, "/bind?token="+c.Query("token")) })
 
 	engine.GET("/api/v1/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok", "version": "0.3.0"})
@@ -83,7 +84,8 @@ func Setup(
 		readGroup.GET("/users/me", userH.GetMe)
 		readGroup.GET("/users/me/favorites", userH.ListFavorites)
 		readGroup.GET("/users/me/notifications", userH.ListNotifications)
-		readGroup.GET("/users/me/instances", claimH.GetClaimedInstances)
+		readGroup.GET("/users/me/instances", bindH.GetObservedInstance)
+		readGroup.GET("/users/me/instances", func(c *gin.Context) { c.Redirect(302, "/api/v1/users/me/observed") })
 		readGroup.GET("/users/:id", userH.GetByID)
 		readGroup.GET("/users/:id/assets", userH.ListAssets)
 	}
@@ -152,7 +154,8 @@ func Setup(
 		publicGroup.GET("skills/download/:id", publicH.DownloadSkillByID)
 		publicGroup.GET("reviews/:id", publicH.ListReviews)
 		publicGroup.GET("/skills-by-id/:id/versions", publicH.ListAssetVersions)
-		publicGroup.POST("/claim", claimH.Claim)
+		publicGroup.POST("/bind", bindH.Bind)
+		publicGroup.POST("/claim", func(c *gin.Context) { c.Redirect(302, "/api/v1/public/bind") })
 		publicGroup.GET("/stats", publicH.Stats)
 		publicGroup.GET("/users/:username", publicH.UserProfile)
 	}

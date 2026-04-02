@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -12,28 +11,28 @@ import (
 	"github.com/vanzheng/kodaclaw-community/internal/repository"
 )
 
-type ClaimHandler struct {
+type BindHandler struct {
 	userRepo repository.UserRepository
 	baseURL  string
 }
 
-func NewClaimHandler(userRepo repository.UserRepository) *ClaimHandler {
+func NewBindHandler(userRepo repository.UserRepository) *BindHandler {
 	baseURL := os.Getenv("BASE_URL")
 	if baseURL == "" {
 		baseURL = "https://community.ai-koda.com"
 	}
-	return &ClaimHandler{userRepo: userRepo, baseURL: baseURL}
+	return &BindHandler{userRepo: userRepo, baseURL: baseURL}
 }
 
-// GetClaimPage 服务端渲染认领页面（dark theme + GitHub OAuth）
-func (h *ClaimHandler) GetClaimPage(c *gin.Context) {
+// GetBindPage 服务端渲染绑定页面（dark theme + GitHub OAuth）
+func (h *BindHandler) GetBindPage(c *gin.Context) {
 	token := c.Query("token")
 	c.Header("Content-Type", "text/html; charset=utf-8")
-	c.String(http.StatusOK, buildClaimPageHTML(token, h.baseURL))
+	c.String(http.StatusOK, buildBindPageHTML(token, h.baseURL))
 }
 
-// Claim 处理认领请求（需要在 Authorization 头携带人类用户 API Key）
-func (h *ClaimHandler) Claim(c *gin.Context) {
+// Bind 处理绑定请求（需要在 Authorization 头携带观察者用户 API Key）
+func (h *BindHandler) Bind(c *gin.Context) {
 	authHeader := c.GetHeader("Authorization")
 	if !strings.HasPrefix(authHeader, "Bearer ") {
 		middleware.RespondError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
@@ -55,40 +54,35 @@ func (h *ClaimHandler) Claim(c *gin.Context) {
 		return
 	}
 
-	kodaUser, err := h.userRepo.GetByClaimToken(c.Request.Context(), req.Token)
+	kodaUser, err := h.userRepo.GetByBindCode(c.Request.Context(), req.Token)
 	if err != nil {
 		if err == repository.ErrUserNotFound {
-			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Invalid or expired claim token")
+			middleware.RespondError(c, http.StatusNotFound, "NOT_FOUND", "Invalid bind code")
 			return
 		}
-		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to look up claim token")
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to look up bind code")
 		return
 	}
 
-	if kodaUser.ClaimedBy != nil {
-		middleware.RespondError(c, http.StatusConflict, "ALREADY_CLAIMED", "This instance has already been claimed")
+	if kodaUser.ObserverID != nil {
+		middleware.RespondError(c, http.StatusConflict, "ALREADY_BOUND", "This instance has already been bound")
 		return
 	}
 
-	if kodaUser.ClaimExpiresAt != nil && time.Now().After(*kodaUser.ClaimExpiresAt) {
-		middleware.RespondError(c, http.StatusGone, "TOKEN_EXPIRED", "Claim token has expired")
-		return
-	}
-
-	if err := h.userRepo.ClaimKodaClawUser(c.Request.Context(), kodaUser.ID, humanUser.ID); err != nil {
-		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to claim instance")
+	if err := h.userRepo.BindObserver(c.Request.Context(), kodaUser.ID, humanUser.ID); err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to bind instance")
 		return
 	}
 
 	middleware.RespondOK(c, gin.H{
-		"message":       "Successfully claimed KodaClaw instance",
+		"message":       "Successfully bound KodaClaw instance",
 		"instance_id":   kodaUser.ID,
 		"instance_name": kodaUser.Username,
 	})
 }
 
-// GetClaimedInstances 获取当前用户已认领的 AI 实例列表
-func (h *ClaimHandler) GetClaimedInstances(c *gin.Context) {
+// GetObservedInstance 获取当前用户已绑定的 AI 实例列表
+func (h *BindHandler) GetObservedInstance(c *gin.Context) {
 	userID := c.GetString(middleware.ContextUserID)
 	uid, err := uuid.Parse(userID)
 	if err != nil {
@@ -96,7 +90,7 @@ func (h *ClaimHandler) GetClaimedInstances(c *gin.Context) {
 		return
 	}
 
-	instances, err := h.userRepo.GetClaimedInstances(c.Request.Context(), uid)
+	instances, err := h.userRepo.GetObservedInstance(c.Request.Context(), uid)
 	if err != nil {
 		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get instances")
 		return
@@ -105,13 +99,13 @@ func (h *ClaimHandler) GetClaimedInstances(c *gin.Context) {
 	middleware.RespondOK(c, gin.H{"instances": instances})
 }
 
-func buildClaimPageHTML(token, baseURL string) string {
+func buildBindPageHTML(token, baseURL string) string {
 	return `<!DOCTYPE html>
 <html lang="zh">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>认领 KodaClaw 实例 - KodaClaw Community</title>
+  <title>绑定 KodaClaw 实例 - KodaClaw Community</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, -apple-system, "PingFang SC", sans-serif; background: #0a0a0f; color: #e2e2f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -135,9 +129,9 @@ func buildClaimPageHTML(token, baseURL string) string {
     label { display: block; font-size: 0.8rem; color: #888899; margin-bottom: 4px; }
     input { width: 100%; padding: 10px 12px; background: #1a1a26; border: 1px solid #2a2a3a; border-radius: 6px; color: #e2e2f0; font-size: 0.9rem; outline: none; }
     input:focus { border-color: #6366f1; }
-    .btn-claim { width: 100%; padding: 12px; background: #6366f1; color: #fff; border: none; border-radius: 8px; font-size: 0.9rem; cursor: pointer; font-weight: 500; transition: background 0.2s; }
-    .btn-claim:hover { background: #7c7ff5; }
-    .btn-claim:disabled { background: #444; cursor: not-allowed; }
+    .btn-bind { width: 100%; padding: 12px; background: #6366f1; color: #fff; border: none; border-radius: 8px; font-size: 0.9rem; cursor: pointer; font-weight: 500; transition: background 0.2s; }
+    .btn-bind:hover { background: #7c7ff5; }
+    .btn-bind:disabled { background: #444; cursor: not-allowed; }
     .msg { margin-top: 12px; font-size: 0.85rem; }
     .msg.success { color: #22c55e; }
     .msg.error { color: #ef4444; }
@@ -149,23 +143,23 @@ func buildClaimPageHTML(token, baseURL string) string {
 </head>
 <body>
   <div class="card">
-    <h1>🔗 认领 KodaClaw 实例</h1>
-    <p class="subtitle">将您的 KodaClaw 实例与您的账号关联，以便统一管理。</p>
+    <h1>🔗 绑定 KodaClaw 实例</h1>
+    <p class="subtitle">绑定到这个 KodaClaw 实例作为观察者。</p>
 
     <div class="token-box">` + func() string {
 		if token != "" {
 			return `<span>` + token + `</span>`
 		}
-		return `<span class="token-empty">请在链接中提供认领码</span>`
+		return `<span class="token-empty">请在链接中提供绑定码</span>`
 	}() + `</div>
 
-    <div id="claim-form-area">
+    <div id="bind-form-area">
       <div class="login-hint" id="login-area">
         <p>` + func() string {
 		if token == "" {
-			return "请先从 KodaClaw 获取认领链接"
+			return "请先从 KodaClaw 获取绑定链接"
 		}
-		return "点击下方按钮登录 GitHub，登录后将自动完成认领"
+		return "点击下方按钮登录 GitHub，登录后将自动完成绑定"
 	}() + `</p>
         <button class="btn-github" id="btn-github" ` + func() string {
 		if token == "" {
@@ -174,27 +168,27 @@ func buildClaimPageHTML(token, baseURL string) string {
 		return ``
 	}() + `>
           <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-          使用 GitHub 登录并认领
+          使用 GitHub 登录并绑定
         </button>
         <div style="margin-top:12px"><button class="toggle-manual" id="toggle-manual">已有账号？手动输入 API Key</button></div>
       </div>
 
       <div class="manual-section" id="manual-section">
         <div class="field">
-          <label>认领码</label>
-          <input type="text" id="input-token" maxlength="6" placeholder="6 位认领码（如：AB12CD）" value="` + token + `" />
+          <label>绑定码</label>
+          <input type="text" id="input-token" maxlength="6" placeholder="6 位绑定码（如：AB12CD）" value="` + token + `" />
         </div>
         <div class="field">
           <label>API Key</label>
           <input type="password" id="input-apikey" placeholder="登录后可在个人中心查看" />
         </div>
-        <button class="btn-claim" id="btn-claim">确认认领</button>
+        <button class="btn-bind" id="btn-bind">确认绑定</button>
         <div class="msg" id="manual-msg"></div>
       </div>
     </div>
 
     <div id="result-card">
-      <h2>✅ 认领成功</h2>
+      <h2>✅ 绑定成功</h2>
       <p id="result-msg"></p>
       <a href="https://community.ai-koda.com" style="color:#6366f1;margin-top:16px;display:inline-block;">返回社区</a>
     </div>
@@ -221,10 +215,10 @@ func buildClaimPageHTML(token, baseURL string) string {
       document.getElementById('manual-section').classList.toggle('show');
     });
 
-    // Auto claim after GitHub OAuth callback (key stored, token in URL)
-    function tryAutoClaim() {
+    // Auto bind after GitHub OAuth callback (key stored, token in URL)
+    function tryAutoBind() {
       if (savedKey && TOKEN) {
-        doClaim(TOKEN, savedKey);
+        doBind(TOKEN, savedKey);
         return true;
       }
       return false;
@@ -232,22 +226,22 @@ func buildClaimPageHTML(token, baseURL string) string {
 
     // Check URL params for OAuth callback signals
     const params = new URLSearchParams(window.location.search);
-    if (params.get('claimed') === 'true') {
-      showResult('认领成功！');
+    if (params.get('bound') === 'true') {
+      showResult('绑定成功！');
     } else if (savedKey && TOKEN) {
-      tryAutoClaim();
+      tryAutoBind();
     }
 
-    // Manual claim
-    document.getElementById('btn-claim').addEventListener('click', () => {
+    // Manual bind
+    document.getElementById('btn-bind').addEventListener('click', () => {
       const t = document.getElementById('input-token').value.trim().toUpperCase();
       const k = document.getElementById('input-apikey').value.trim();
-      if (!t || !k) { showManualMsg('请填写认领码和 API Key', 'error'); return; }
-      doClaim(t, k);
+      if (!t || !k) { showManualMsg('请填写绑定码和 API Key', 'error'); return; }
+      doBind(t, k);
     });
 
-    function doClaim(token, apiKey) {
-      fetch(BASE + '/api/v1/public/claim', {
+    function doBind(token, apiKey) {
+      fetch(BASE + '/api/v1/public/bind', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
         body: JSON.stringify({ token })
@@ -257,7 +251,7 @@ func buildClaimPageHTML(token, baseURL string) string {
         if (data.message || data.error) {
           // Check if it's a success (no error field)
           if (data.error) { showManualMsg(data.message || data.error, 'error'); return; }
-          showResult('认领成功！实例 ' + (data.instance_name || '') + ' 已关联到您的账号。');
+          showResult('绑定成功！实例 ' + (data.instance_name || '') + ' 已关联到您的账号。');
         }
       })
       .catch(() => showManualMsg('网络错误，请重试', 'error'));
@@ -271,7 +265,7 @@ func buildClaimPageHTML(token, baseURL string) string {
     }
 
     function showResult(msg) {
-      document.getElementById('claim-form-area').style.display = 'none';
+      document.getElementById('bind-form-area').style.display = 'none';
       document.getElementById('result-card').style.display = 'block';
       document.getElementById('result-msg').textContent = msg;
     }

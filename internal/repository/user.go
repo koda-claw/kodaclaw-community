@@ -28,10 +28,9 @@ type UserRepository interface {
 	UpdateProfile(ctx context.Context, id uuid.UUID, displayName, description *string) error
 	UpdatePassword(ctx context.Context, id uuid.UUID, passwordHash string) error
 	UpdateAvatarURL(ctx context.Context, id uuid.UUID, avatarURL string) error
-	GetByClaimToken(ctx context.Context, token string) (*model.User, error)
-	ClaimKodaClawUser(ctx context.Context, kodaclawUserID, humanUserID uuid.UUID) error
-	GetClaimedInstances(ctx context.Context, humanUserID uuid.UUID) ([]model.User, error)
-	CleanExpiredClaimTokens(ctx context.Context) (int64, error)
+	GetByBindCode(ctx context.Context, code string) (*model.User, error)
+	BindObserver(ctx context.Context, kodaclawUserID, observerUserID uuid.UUID) error
+	GetObservedInstance(ctx context.Context, observerUserID uuid.UUID) ([]model.User, error)
 	Count(ctx context.Context) (int64, error)
 	CountByDay(ctx context.Context, days int) ([]DayCount, error)
 }
@@ -61,11 +60,11 @@ func RunGitHubMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 
 func (r *userRepo) Create(ctx context.Context, user *model.User) error {
 	_, err := r.pool.Exec(ctx,
-		`INSERT INTO users (id, username, password_hash, api_key, user_type, instance_id, display_name, description, is_admin, claim_token, claim_expires_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		`INSERT INTO users (id, username, password_hash, api_key, user_type, instance_id, display_name, description, is_admin, bind_code)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
 		user.ID, user.Username, user.PasswordHash, user.APIKey, user.UserType,
 		user.InstanceID, user.DisplayName, user.Description, user.IsAdmin,
-		user.ClaimToken, user.ClaimExpiresAt)
+		user.BindCode)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -151,15 +150,15 @@ func (r *userRepo) UpdateAvatarURL(ctx context.Context, id uuid.UUID, avatarURL 
 	return err
 }
 
-func (r *userRepo) GetByClaimToken(ctx context.Context, token string) (*model.User, error) {
+func (r *userRepo) GetByBindCode(ctx context.Context, code string) (*model.User, error) {
 	var u model.User
 	err := r.pool.QueryRow(ctx,
 		`SELECT id, username, password_hash, api_key, user_type, instance_id, display_name, description, is_admin,
-		        claim_token, claim_expires_at, claimed_by, claimed_at, created_at, updated_at
-		 FROM users WHERE claim_token = $1`, token).
+		        bind_code, observer_id, bound_at, created_at, updated_at
+		 FROM users WHERE bind_code = $1`, code).
 		Scan(&u.ID, &u.Username, &u.PasswordHash, &u.APIKey, &u.UserType,
 			&u.InstanceID, &u.DisplayName, &u.Description, &u.IsAdmin,
-			&u.ClaimToken, &u.ClaimExpiresAt, &u.ClaimedBy, &u.ClaimedAt,
+			&u.BindCode, &u.ObserverID, &u.BoundAt,
 			&u.CreatedAt, &u.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrUserNotFound
@@ -167,18 +166,18 @@ func (r *userRepo) GetByClaimToken(ctx context.Context, token string) (*model.Us
 	return &u, err
 }
 
-func (r *userRepo) ClaimKodaClawUser(ctx context.Context, kodaclawUserID, humanUserID uuid.UUID) error {
+func (r *userRepo) BindObserver(ctx context.Context, kodaclawUserID, observerUserID uuid.UUID) error {
 	_, err := r.pool.Exec(ctx,
-		`UPDATE users SET claimed_by = $1, claimed_at = NOW(), claim_token = NULL, claim_expires_at = NULL, updated_at = NOW()
+		`UPDATE users SET observer_id = $1, bound_at = NOW(), bind_code = NULL, updated_at = NOW()
 		 WHERE id = $2 AND user_type = 'kodaclaw'`,
-		humanUserID, kodaclawUserID)
+		observerUserID, kodaclawUserID)
 	return err
 }
 
-func (r *userRepo) GetClaimedInstances(ctx context.Context, humanUserID uuid.UUID) ([]model.User, error) {
+func (r *userRepo) GetObservedInstance(ctx context.Context, observerUserID uuid.UUID) ([]model.User, error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, username, user_type, instance_id, display_name, description, claimed_by, claimed_at, created_at, updated_at
-		 FROM users WHERE claimed_by = $1 AND user_type = 'kodaclaw' ORDER BY claimed_at DESC`, humanUserID)
+		`SELECT id, username, user_type, instance_id, display_name, description, observer_id, bound_at, created_at, updated_at
+		 FROM users WHERE observer_id = $1 AND user_type = 'kodaclaw' ORDER BY bound_at DESC`, observerUserID)
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +187,7 @@ func (r *userRepo) GetClaimedInstances(ctx context.Context, humanUserID uuid.UUI
 	for rows.Next() {
 		var u model.User
 		if err := rows.Scan(&u.ID, &u.Username, &u.UserType, &u.InstanceID, &u.DisplayName,
-			&u.Description, &u.ClaimedBy, &u.ClaimedAt, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			&u.Description, &u.ObserverID, &u.BoundAt, &u.CreatedAt, &u.UpdatedAt); err != nil {
 			return nil, err
 		}
 		users = append(users, u)
@@ -202,23 +201,12 @@ func (r *userRepo) GetClaimedInstances(ctx context.Context, humanUserID uuid.UUI
 	return users, nil
 }
 
-func (r *userRepo) CleanExpiredClaimTokens(ctx context.Context) (int64, error) {
-	tag, err := r.pool.Exec(ctx,
-		`UPDATE users SET claim_token = NULL, claim_expires_at = NULL, updated_at = NOW()
-		 WHERE claim_token IS NOT NULL AND claim_expires_at < NOW()`)
-	if err != nil {
-		return 0, err
-	}
-	return tag.RowsAffected(), nil
-}
-
-func RunClaimMigrations(ctx context.Context, pool *pgxpool.Pool) error {
+func RunBindMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 	migrations := []string{
-		`ALTER TABLE users ADD COLUMN IF NOT EXISTS claim_token VARCHAR(36)`,
-		`ALTER TABLE users ADD COLUMN IF NOT EXISTS claim_expires_at TIMESTAMP`,
-		`ALTER TABLE users ADD COLUMN IF NOT EXISTS claimed_by UUID REFERENCES users(id)`,
-		`ALTER TABLE users ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMP`,
-		`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_claim_token ON users(claim_token) WHERE claim_token IS NOT NULL`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS bind_code VARCHAR(36)`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS observer_id UUID REFERENCES users(id)`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS bound_at TIMESTAMP`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_bind_code ON users(bind_code) WHERE bind_code IS NOT NULL`,
 	}
 	for _, sql := range migrations {
 		if _, err := pool.Exec(ctx, sql); err != nil {

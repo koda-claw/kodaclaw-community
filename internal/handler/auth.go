@@ -2,12 +2,11 @@ package handler
 
 import (
 	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"fmt"
-	"encoding/base64"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -50,13 +49,8 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// Auto-generate password for kodaclaw type
+	// Auto-generate password if not provided (KodaClaw uses API Key, password is just for DB constraint)
 	if req.Password == "" {
-		if req.UserType != model.UserTypeKodaClaw {
-			middleware.RespondError(c, http.StatusBadRequest, "INVALID_REQUEST", "Password is required for human accounts")
-			return
-		}
-		// Generate random password (KodaClaw uses API Key, password is just for DB constraint)
 		b := make([]byte, 16)
 		if _, err := rand.Read(b); err != nil {
 			middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to generate password")
@@ -76,11 +70,6 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	apiKey := uuid.New().String() + uuid.New().String()
 	apiKey = apiKey[:32]
 
-	// Default user type to human
-	if req.UserType == "" {
-		req.UserType = model.UserTypeHuman
-	}
-
 	// Admin: if register request includes the admin API key, grant admin privileges
 	isAdmin := false
 	adminKey := os.Getenv("ADMIN_API_KEY")
@@ -88,24 +77,18 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		isAdmin = true
 	}
 
+	bindCode := generateBindCode()
 	user := &model.User{
 		ID:           uuid.New(),
 		Username:     req.Username,
 		PasswordHash: string(hash),
 		APIKey:       apiKey,
-		UserType:     req.UserType,
+		UserType:     model.UserTypeKodaClaw,
 		InstanceID:   req.InstanceID,
 		DisplayName:  req.DisplayName,
 		Description:  req.Description,
 		IsAdmin:      isAdmin,
-	}
-
-	// For kodaclaw users, generate a claim token
-	if req.UserType == model.UserTypeKodaClaw {
-		token := generateClaimToken()
-		expiresAt := time.Now().Add(7 * 24 * time.Hour)
-		user.ClaimToken = &token
-		user.ClaimExpiresAt = &expiresAt
+		BindCode:     &bindCode,
 	}
 
 	if err := h.userRepo.Create(c.Request.Context(), user); err != nil {
@@ -124,14 +107,14 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		CreatedAt: user.CreatedAt,
 	}
 
-	if user.ClaimToken != nil {
+	if user.BindCode != nil {
 		baseURL := os.Getenv("BASE_URL")
 		if baseURL == "" {
 			baseURL = "https://community.ai-koda.com"
 		}
-		middleware.RespondCreated(c, model.RegisterResponseWithClaim{
+		middleware.RespondCreated(c, model.RegisterResponseWithBind{
 			RegisterResponse: base,
-			ClaimURL:         fmt.Sprintf("%s/claim?token=%s", baseURL, *user.ClaimToken),
+			BindURL:          fmt.Sprintf("%s/bind?token=%s", baseURL, *user.BindCode),
 		})
 		return
 	}
@@ -139,8 +122,8 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	middleware.RespondCreated(c, base)
 }
 
-// generateClaimToken 生成 6 位大写字母+数字的随机认领码
-func generateClaimToken() string {
+// generateBindCode 生成 6 位大写字母+数字的随机绑定码
+func generateBindCode() string {
 	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	b := make([]byte, 6)
 	_, _ = rand.Read(b)

@@ -62,8 +62,8 @@ func main() {
 	if err := repository.RunGitHubMigrations(ctx, pool); err != nil {
 		log.Fatalf("Failed to run GitHub migrations: %v", err)
 	}
-	if err := repository.RunClaimMigrations(ctx, pool); err != nil {
-		log.Fatalf("Failed to run claim migrations: %v", err)
+	if err := repository.RunBindMigrations(ctx, pool); err != nil {
+		log.Fatalf("Failed to run bind migrations: %v", err)
 	}
 	if cfg.RelayEnabled {
 		if err := repository.RunRelayMigrations(ctx, pool); err != nil {
@@ -114,7 +114,7 @@ func main() {
 	userH := handler.NewUserHandlerWithNotifications(userRepo, assetRepo, favoriteRepo, notificationRepo)
 	publicH := handler.NewPublicHandler(assetRepo, versionRepo, reviewRepo, userRepo, cfg.AssetStoragePath)
 	githubH := handler.NewGitHubHandler(userRepo)
-	claimH := handler.NewClaimHandler(userRepo)
+	bindH := handler.NewBindHandler(userRepo)
 
 	taskCtx, taskCancel := context.WithCancel(context.Background())
 	defer taskCancel()
@@ -134,7 +134,7 @@ func main() {
 	}
 
 	engine := gin.Default()
-	router.Setup(engine, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, uploadLimiter, publicH, githubH, claimH, relayH, webhookH)
+	router.Setup(engine, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, uploadLimiter, publicH, githubH, bindH, relayH, webhookH)
 
 	srv := &http.Server{
 		Addr:    cfg.Port,

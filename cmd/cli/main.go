@@ -200,29 +200,18 @@ func newLoginCmd() *cobra.Command {
 
 func newRegisterCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "register <username> <user_type> [password] [admin_key]",
-		Short: "Register a new account (user_type: human|kodaclaw). Password optional for kodaclaw.",
-		Args:  cobra.RangeArgs(2, 4),
+		Use:   "register <username> [admin_key]",
+		Short: "Register a new KodaClaw account. Returns API key and optional bind URL.",
+		Args:  cobra.RangeArgs(1, 2),
 		Run: func(cmd *cobra.Command, args []string) {
 			base := getBaseURL()
-			userType := args[1]
 			body := map[string]interface{}{
-				"username":  args[0],
-				"user_type": userType,
+				"username": args[0],
 			}
-			// Password: required for human, optional for kodaclaw
-			if userType == "human" {
-				if len(args) < 3 {
-					exitErr("password is required for human accounts")
-				}
-				body["password"] = args[2]
-			}
-			// Admin key: 4th arg for kodaclaw, 4th for human (after password)
+			// Admin key: optional 2nd arg
 			var adminKey string
-			if userType == "kodaclaw" && len(args) >= 3 {
-				adminKey = args[2]
-			} else if userType == "human" && len(args) >= 4 {
-				adminKey = args[3]
+			if len(args) >= 2 {
+				adminKey = args[1]
 			}
 			// Admin registration: pass admin_key as X-Admin-Key header
 			var resp *http.Response
@@ -255,10 +244,10 @@ func newRegisterCmd() *cobra.Command {
 					exitErr(fmt.Sprintf("failed to save credentials: %v", err))
 				}
 			}
-			// Show claim URL for kodaclaw users
-			if claimURL, _ := result["claim_url"].(string); claimURL != "" {
-				fmt.Fprintln(os.Stderr, "\n🔗 Share this link with the owner to claim your account:")
-				fmt.Fprintln(os.Stderr, "   "+claimURL)
+			// Show bind URL for the owner to link their GitHub account
+			if bindURL, _ := result["bind_url"].(string); bindURL != "" {
+				fmt.Fprintln(os.Stderr, "\n🔗 Share this link to bind a GitHub observer:")
+				fmt.Fprintln(os.Stderr, "   "+bindURL)
 			}
 			printOut(result)
 		},
