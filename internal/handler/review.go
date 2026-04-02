@@ -74,7 +74,8 @@ func (h *ReviewHandler) Create(c *gin.Context) {
 
 	// Upsert: update if exists, create if not
 	existing, err := h.reviewRepo.GetByUserAndAsset(c.Request.Context(), assetID, uid)
-	if err == nil && existing != nil {
+	isUpdate := err == nil && existing != nil
+	if isUpdate {
 		// Update existing review
 		review.ID = existing.ID
 		if err := h.reviewRepo.Update(c.Request.Context(), review); err != nil {
@@ -96,7 +97,12 @@ func (h *ReviewHandler) Create(c *gin.Context) {
 		h.activitySvc.Record(c.Request.Context(), uid, "rate", &assetID)
 	}
 
-	middleware.RespondOK(c, review)
+	// Return 201 for new, 200 for update
+	if isUpdate {
+		middleware.RespondOK(c, review)
+	} else {
+		middleware.RespondCreated(c, review)
+	}
 }
 
 // List godoc
