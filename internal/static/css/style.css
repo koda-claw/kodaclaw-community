@@ -210,7 +210,7 @@ a:hover { color: var(--accent-hover); }
 .review-author { font-weight: 600; font-size: 0.875rem; }
 .review-stars { color: #fbbf24; font-size: 0.9rem; }
 .review-date { color: var(--text-muted); font-size: 0.78rem; margin-left: auto; }
-.review-body { color: var(--text); font-size: 0.875rem; line-height: 1.7; }
+.review-body { color: var(--text); font-size: 0.875rem; line-height: 1.7; word-break: break-word; }
 .review-body > *:first-child { margin-top: 0; }
 .review-body > *:last-child { margin-bottom: 0; }
 
@@ -1277,106 +1277,111 @@ a:hover { color: var(--accent-hover); }
 }
 @media (max-width: 600px) {
   .footer-inner { flex-direction: column; gap: .5rem; }
-
+}
 
 /* ========== Markdown 渲染（评论、详情描述等） ========== */
-.marked-body h1, .marked-body h2, .marked-body h3,
-.review-body h1, .review-body h2, .review-body h3 {
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--text);
-  margin: 1em 0 0.4em;
+
+/* 标题 — 评论内标题必须降级，不能比 section-title 大 */
+.review-body h1 { font-size: 1rem; font-weight: 700; color: var(--text); margin: 1.2em 0 0.5em; }
+.review-body h2 { font-size: 0.95rem; font-weight: 600; color: var(--text); margin: 1em 0 0.4em; padding-bottom: 0.3em; border-bottom: 1px solid var(--border); }
+.review-body h3 { font-size: 0.9rem; font-weight: 600; color: var(--text); margin: 0.8em 0 0.3em; }
+.review-body h4, .review-body h5, .review-body h6 { font-size: 0.875rem; font-weight: 600; color: var(--text); margin: 0.6em 0 0.3em; }
+
+/* 段落 */
+.review-body p { margin: 0.5em 0; line-height: 1.7; }
+
+/* 列表 */
+.review-body ul, .review-body ol { padding-left: 1.5em; margin: 0.5em 0; }
+.review-body li { margin-bottom: 0.2em; line-height: 1.6; }
+.review-body li > ul, .review-body li > ol { margin: 0.2em 0; }
+
+/* 行内代码 */
+.review-body code {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.8rem;
+  background: rgba(99,102,241,0.1);
+  color: var(--accent);
+  border: 1px solid rgba(99,102,241,0.2);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
 }
-.marked-body h4, .review-body h4 {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text);
-  margin: 0.8em 0 0.3em;
+
+/* 代码块包装 */
+.code-block {
+  margin: 0.75em 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: #0d0d14;
 }
-.marked-body p, .review-body p {
-  color: var(--text);
-  margin: 0.6em 0;
-  line-height: 1.7;
-}
-.marked-body ul, .review-body ul,
-.marked-body ol, .review-body ol {
-  padding-left: 1.5em;
-  margin: 0.6em 0;
-  color: var(--text);
-}
-.marked-body li, .review-body li {
-  margin-bottom: 0.25em;
-  line-height: 1.6;
-}
-.marked-body code, .review-body code {
-  font-family: 'Fira Code', monospace;
-  font-size: 0.82rem;
+.code-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
   background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+}
+.code-lang {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.code-copy-btn {
+  background: none;
   border: 1px solid var(--border);
   border-radius: 4px;
-  padding: 0.15em 0.35em;
-  color: var(--accent);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: all 0.15s;
 }
-.marked-body pre, .review-body pre {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 0.85rem 1rem;
+.code-copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+.code-block pre {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 0.75rem 1rem;
   overflow-x: auto;
-  font-size: 0.82rem;
-  font-family: 'Fira Code', 'SF Mono', 'Consolas', monospace;
+  font-size: 0.8rem;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
   line-height: 1.5;
-  margin: 0.75em 0;
 }
-.marked-body pre code, .review-body pre code {
+.code-block pre code {
   background: none;
   border: none;
   padding: 0;
   border-radius: 0;
   color: var(--text);
+  font-size: inherit;
 }
-.marked-body blockquote, .review-body blockquote {
+
+/* 引用块 */
+.review-body blockquote {
   border-left: 3px solid var(--accent);
   margin: 0.75em 0;
-  padding: 0.25em 0.8em;
+  padding: 0.4em 0.8em;
+  background: rgba(99,102,241,0.05);
+  border-radius: 0 var(--radius) var(--radius) 0;
   color: var(--text-muted);
-  font-style: italic;
 }
-.marked-body a, .review-body a {
-  color: var(--accent);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.marked-body a:hover, .review-body a:hover {
-  color: var(--accent-hover);
-}
-.marked-body strong, .review-body strong {
-  font-weight: 600;
-  color: var(--text);
-}
-.marked-body em, .review-body em {
-  font-style: italic;
-}
-.marked-body table, .review-body table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 0.75em 0;
-  font-size: 0.85rem;
-}
-.marked-body th, .review-body th,
-.marked-body td, .review-body td {
-  border: 1px solid var(--border);
-  padding: 0.4em 0.6em;
-  text-align: left;
-  color: var(--text);
-}
-.marked-body th, .review-body th {
-  background: var(--bg3);
-  font-weight: 600;
-}
-.marked-body hr, .review-body hr {
-  border: none;
-  border-top: 1px solid var(--border);
-  margin: 1em 0;
-}
-}
+.review-body blockquote p { margin: 0.3em 0; }
+
+/* 链接 */
+.review-body a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.review-body a:hover { color: var(--accent-hover); }
+
+/* 表格 */
+.review-body table { width: 100%; border-collapse: collapse; margin: 0.75em 0; font-size: 0.82rem; }
+.review-body th, .review-body td { border: 1px solid var(--border); padding: 0.4em 0.6em; text-align: left; color: var(--text); }
+.review-body th { background: var(--bg3); font-weight: 600; }
+
+/* 分割线 */
+.review-body hr { border: none; border-top: 1px solid var(--border); margin: 1em 0; }
+
+/* 图片 */
+.review-body img { max-width: 100%; border-radius: var(--radius); margin: 0.5em 0; }
