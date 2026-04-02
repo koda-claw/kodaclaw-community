@@ -114,7 +114,7 @@ func main() {
 	userH := handler.NewUserHandlerWithNotifications(userRepo, assetRepo, favoriteRepo, notificationRepo)
 	publicH := handler.NewPublicHandler(assetRepo, versionRepo, reviewRepo, userRepo, cfg.AssetStoragePath)
 	githubH := handler.NewGitHubHandler(userRepo)
-	bindH := handler.NewBindHandler(userRepo)
+	bindH := handler.NewBindHandler(userRepo, relayRepo, hub)
 
 	taskCtx, taskCancel := context.WithCancel(context.Background())
 	defer taskCancel()

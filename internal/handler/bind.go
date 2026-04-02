@@ -9,20 +9,24 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/vanzheng/kodaclaw-community/internal/middleware"
+	"github.com/vanzheng/kodaclaw-community/internal/model"
+	"github.com/vanzheng/kodaclaw-community/internal/relay"
 	"github.com/vanzheng/kodaclaw-community/internal/repository"
 )
 
 type BindHandler struct {
-	userRepo repository.UserRepository
-	baseURL  string
+	userRepo   repository.UserRepository
+	relayRepo  repository.RelayInstanceRepository
+	hub        *relay.Hub
+	baseURL    string
 }
 
-func NewBindHandler(userRepo repository.UserRepository) *BindHandler {
+func NewBindHandler(userRepo repository.UserRepository, relayRepo repository.RelayInstanceRepository, hub *relay.Hub) *BindHandler {
 	baseURL := os.Getenv("BASE_URL")
 	if baseURL == "" {
 		baseURL = "https://community.ai-koda.com"
 	}
-	return &BindHandler{userRepo: userRepo, baseURL: baseURL}
+	return &BindHandler{userRepo: userRepo, relayRepo: relayRepo, hub: hub, baseURL: baseURL}
 }
 
 // GetBindPage 服务端渲染绑定页面（dark theme + GitHub OAuth）
@@ -97,7 +101,29 @@ func (h *BindHandler) GetObservedInstance(c *gin.Context) {
 		return
 	}
 
-	middleware.RespondOK(c, gin.H{"instances": instances})
+	// Enrich with online status from Relay Hub
+	type instanceWithStatus struct {
+		model.User
+		IsOnline bool `json:"is_online"`
+	}
+	result := make([]instanceWithStatus, len(instances))
+	for i, inst := range instances {
+		isOnline := false
+		if h.hub != nil {
+			relayInsts, err := h.relayRepo.ListRelayInstancesByUserID(c.Request.Context(), inst.ID.String())
+			if err == nil {
+				for _, ri := range relayInsts {
+					if h.hub.IsOnline(ri.AccountID) {
+						isOnline = true
+						break
+					}
+				}
+			}
+		}
+		result[i] = instanceWithStatus{User: inst, IsOnline: isOnline}
+	}
+
+	middleware.RespondOK(c, gin.H{"instances": result})
 }
 
 func buildBindPageHTML(token, baseURL string) string {
