@@ -20,6 +20,9 @@ func NewAuditService(repo *repository.AuditLogRepo) *AuditService {
 
 // Log writes an audit log entry. Errors are only slog.Warn'd, never returned.
 func (s *AuditService) Log(ctx context.Context, operatorID uuid.UUID, action, targetType string, targetID uuid.UUID, detail string) {
+	if s.repo == nil {
+		return
+	}
 	entry := &model.AuditLog{
 		ID:         uuid.New(),
 		OperatorID: operatorID,
@@ -36,5 +39,8 @@ func (s *AuditService) Log(ctx context.Context, operatorID uuid.UUID, action, ta
 
 // List returns paginated audit log entries.
 func (s *AuditService) List(ctx context.Context, page, pageSize int) ([]model.AuditLog, int, error) {
+	if s.repo == nil {
+		return nil, 0, nil
+	}
 	return s.repo.List(ctx, page, pageSize)
 }
