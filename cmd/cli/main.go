@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -10,21 +9,14 @@ import (
 var version = "dev"
 
 func main() {
-	var showVersion bool
-
 	root := &cobra.Command{
 		Use:   "kc-community",
 		Short: "KodaClaw Community CLI",
-		Long:  "CLI tool for interacting with the KodaClaw Community API.\n\nBase URL can be overridden via KC_COMMUNITY_URL environment variable.",
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			if showVersion {
-				fmt.Println("kc-community version " + version)
-				os.Exit(0)
-			}
-		},
+		Long: "CLI tool for interacting with the KodaClaw Community API.\n\nBase URL can be overridden via KC_COMMUNITY_URL environment variable.",
+		Version: version,
 	}
 
-	root.PersistentFlags().BoolVar(&showVersion, "version", false, "Print version and exit")
+	root.SetVersionTemplate("kc-community version {{.Version}}\n")
 
 	root.AddCommand(
 		newLoginCmd(),
