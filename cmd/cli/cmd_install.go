@@ -14,6 +14,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type installedSkill struct {
+	Name        string `json:"name"`
+	Version     string `json:"version"`
+	InstalledAt string `json:"installed_at"`
+}
+
+type installedRecords struct {
+	Skills []installedSkill `json:"skills"`
+}
+
 func newInstallCmd() *cobra.Command {
 	var workspaceDir string
 
@@ -100,15 +110,25 @@ func newInstallCmd() *cobra.Command {
 				}
 			}
 
-			// 4. Write installed.json record
-			installedFile := func() string { h, _ := os.UserHomeDir(); return filepath.Join(h, ".kodaclaw-community", "installed.json") }()
-			var installed struct {
-				Skills []struct {
-					Name        string `json:"name"`
-					Version     string `json:"version"`
-					InstalledAt string `json:"installed_at"`
-				} `json:"skills"`
+			// Fetch current_version from API
+			version := "unknown"
+			vURL := baseURL + "/api/v1/public/skills/" + url.PathEscape(name)
+			if vResp, vErr := httpClient.Get(vURL); vErr == nil {
+				var info struct {
+					CurrentVersion *string `json:"current_version"`
+				}
+				if json.NewDecoder(vResp.Body).Decode(&info) == nil && info.CurrentVersion != nil {
+					version = *info.CurrentVersion
+				}
+				vResp.Body.Close()
 			}
+
+			// 4. Write installed.json record
+			installedFile := func() string {
+				h, _ := os.UserHomeDir()
+				return filepath.Join(h, ".kodaclaw-community", "installed.json")
+			}()
+			var installed installedRecords
 			if idata, err := os.ReadFile(installedFile); err == nil {
 				json.Unmarshal(idata, &installed)
 			}
@@ -116,18 +136,18 @@ func newInstallCmd() *cobra.Command {
 			found := false
 			for i, s := range installed.Skills {
 				if s.Name == name {
-					installed.Skills[i].Version = "1.0.0"
+					installed.Skills[i].Version = version
 					installed.Skills[i].InstalledAt = time.Now().Format(time.RFC3339)
 					found = true
 					break
 				}
 			}
 			if !found {
-				installed.Skills = append(installed.Skills, struct {
-					Name        string `json:"name"`
-					Version     string `json:"version"`
-					InstalledAt string `json:"installed_at"`
-				}{Name: name, Version: "1.0.0", InstalledAt: time.Now().Format(time.RFC3339)})
+				installed.Skills = append(installed.Skills, installedSkill{
+					Name:        name,
+					Version:     version,
+					InstalledAt: time.Now().Format(time.RFC3339),
+				})
 			}
 			if idata, err := json.MarshalIndent(installed, "", "  "); err == nil {
 				os.MkdirAll(filepath.Dir(installedFile), 0700)
@@ -163,22 +183,31 @@ func newInstalledCmd() *cobra.Command {
 			}
 
 			// Read installed.json
-			installFile := func() string { h, _ := os.UserHomeDir(); return filepath.Join(h, ".kodaclaw-community", "installed.json") }()
+			installFile := func() string {
+				h, _ := os.UserHomeDir()
+				return filepath.Join(h, ".kodaclaw-community", "installed.json")
+			}()
 			data, err := os.ReadFile(installFile)
 			if err != nil {
+				if isJSON() {
+					outputJSON(installedRecords{Skills: []installedSkill{}})
+					return
+				}
 				fmt.Println("尚未安装任何社区 skill")
 				return
 			}
 
-			var records struct {
-				Skills []struct {
-					Name        string `json:"name"`
-					Version     string `json:"version"`
-					InstalledAt string `json:"installed_at"`
-				} `json:"skills"`
-			}
+			var records installedRecords
 			if err := json.Unmarshal(data, &records); err != nil {
 				exitErr(fmt.Sprintf("failed to parse installed.json: %v", err))
+			}
+
+			if isJSON() {
+				if records.Skills == nil {
+					records.Skills = []installedSkill{}
+				}
+				outputJSON(records)
+				return
 			}
 
 			if len(records.Skills) == 0 {
@@ -222,19 +251,16 @@ func newUpdateCmd() *cobra.Command {
 				}
 			}
 
-			installFile := func() string { h, _ := os.UserHomeDir(); return filepath.Join(h, ".kodaclaw-community", "installed.json") }()
+			installFile := func() string {
+				h, _ := os.UserHomeDir()
+				return filepath.Join(h, ".kodaclaw-community", "installed.json")
+			}()
 			data, err := os.ReadFile(installFile)
 			if err != nil {
 				exitErr("尚未安装任何社区 skill，请先使用 install 命令安装")
 			}
 
-			var records struct {
-				Skills []struct {
-					Name        string `json:"name"`
-					Version     string `json:"version"`
-					InstalledAt string `json:"installed_at"`
-				} `json:"skills"`
-			}
+			var records installedRecords
 			if err := json.Unmarshal(data, &records); err != nil {
 				exitErr(fmt.Sprintf("failed to parse installed.json: %v", err))
 			}
@@ -385,16 +411,13 @@ func newUninstallCmd() *cobra.Command {
 			}
 
 			// Remove from installed.json
-			installFile := func() string { h, _ := os.UserHomeDir(); return filepath.Join(h, ".kodaclaw-community", "installed.json") }()
+			installFile := func() string {
+				h, _ := os.UserHomeDir()
+				return filepath.Join(h, ".kodaclaw-community", "installed.json")
+			}()
 			data, err := os.ReadFile(installFile)
 			if err == nil {
-				var records struct {
-					Skills []struct {
-						Name        string `json:"name"`
-						Version     string `json:"version"`
-						InstalledAt string `json:"installed_at"`
-					} `json:"skills"`
-				}
+				var records installedRecords
 				if json.Unmarshal(data, &records) == nil {
 					filtered := records.Skills[:0]
 					for _, s := range records.Skills {

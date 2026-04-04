@@ -409,6 +409,11 @@ func newMyAssetsCmd() *cobra.Command {
 				exitErr(fmt.Sprintf("failed to decode response: %v", err))
 			}
 
+			if isJSON() {
+				outputJSON(result)
+				return
+			}
+
 			label := "我的资产"
 			if status != "" {
 				label = "我的资产（" + status + "）"

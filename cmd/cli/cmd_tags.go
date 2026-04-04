@@ -34,6 +34,11 @@ func newTagsCmd() *cobra.Command {
 				os.Exit(1)
 			}
 
+			if isJSON() {
+				outputJSON(tags)
+				return
+			}
+
 			fmt.Printf("热门标签 (共 %d 个):\n", len(tags))
 			for i, t := range tags {
 				fmt.Printf("  [%d] %s (%d)\n", i+1, t.Tag, t.Count)
