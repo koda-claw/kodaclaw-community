@@ -1,7 +1,23 @@
 # Changelog
 
-## [Unreleased]
+## [v0.8.0] - 2026-04-04
 
+### 新功能
+- **分级限流**：四级用户角色（管理员/KodaClaw/观察者/匿名）按操作类型（read/write/upload/download）差异化限流
+- **CLI 新命令**：edit（编辑资产元数据）、versions（查看版本列表）、whoami（查看当前用户信息）
+- **内存泄漏防护**：slidingWindowLimiter 惰性过期清理，防止 map 无限增长
+
+### 改进
+- 路由组按操作语义拆分（admin/relay/public 的 GET 走 read 限流，POST 走 write 限流）
+- Auth 和 RateLimit 中间件顺序调换，先认证再限流
+- 版本号通过 ldflags 注入，不再硬编码
+
+### 修复
+- 删除 router.Setup 死参数 uploadLimiter
+- 类型断言风格统一为 comma-ok
+- 未知 operation 打 WARN 日志不再静默放行
+
+## [Unreleased]
 ## [v0.5.0] - 2026-04-01
 
 ### 新功能
