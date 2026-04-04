@@ -28,6 +28,7 @@ func main() {
 
 	root.AddCommand(
 		newLoginCmd(),
+		newLogoutCmd(),
 		newRegisterCmd(),
 		newStatusCmd(),
 		newTagsCmd(),
