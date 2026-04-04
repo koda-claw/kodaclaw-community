@@ -114,6 +114,17 @@ func newAdminCmd() *cobra.Command {
 				return err
 			}
 
+			if isJSON() {
+				if items == nil {
+					items = []map[string]interface{}{}
+				}
+				outputJSON(map[string]interface{}{
+					"total": total,
+					"items": items,
+				})
+				return nil
+			}
+
 			fmt.Printf("待审核资产 (共 %d 个):\n", total)
 			for i, item := range items {
 				name, _ := item["name"].(string)

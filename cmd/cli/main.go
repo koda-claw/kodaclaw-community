@@ -18,6 +18,8 @@ func main() {
 
 	root.SetVersionTemplate("kc-community version {{.Version}}\n")
 
+	root.PersistentFlags().BoolVarP(&jsonMode, "json", "j", false, "Output in JSON format")
+
 	root.AddCommand(
 		newLoginCmd(),
 		newLogoutCmd(),
