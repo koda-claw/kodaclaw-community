@@ -219,13 +219,12 @@ func setupTestRouter(pool *pgxpool.Pool, storagePath string) *gin.Engine {
 
 
 	readLimiter := middleware.NewMemoryRateLimiter(1000, 60)
-	uploadLimiter := middleware.NewMemoryRateLimiter(1000, 60)
 	writeLimiter := middleware.NewMemoryRateLimiter(1000, 60)
 
 	engine := gin.New()
 	githubH := handler.NewGitHubHandler(userRepo)
 	bindH := handler.NewBindHandler(userRepo, relayRepo, hub)
-	router.Setup(engine, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, uploadLimiter, publicH, githubH, bindH, nil, nil)
+	router.Setup(engine, "test", authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, publicH, githubH, bindH, nil, nil)
 	return engine
 }
 

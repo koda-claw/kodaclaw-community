@@ -94,7 +94,6 @@ func main() {
 	}
 
 	readLimiter := middleware.NewMemoryRateLimiter(100, time.Minute)
-	uploadLimiter := middleware.NewMemoryRateLimiter(5, time.Minute)
 	writeLimiter := middleware.NewMemoryRateLimiter(20, time.Minute)
 
 	userRepo := repository.NewUserRepository(pool)
@@ -147,7 +146,7 @@ func main() {
 	}
 
 	engine := gin.Default()
-	router.Setup(engine, Version, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, uploadLimiter, publicH, githubH, bindH, relayH, webhookH)
+	router.Setup(engine, Version, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, publicH, githubH, bindH, relayH, webhookH)
 
 	srv := &http.Server{
 		Addr:    cfg.Port,

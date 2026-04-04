@@ -1159,6 +1159,88 @@ func newStatusCmd() *cobra.Command {
 	}
 }
 
+
+// --- Edit Command ---
+func newEditCmd() *cobra.Command {
+	var desc, name, tags string
+
+	cmd := &cobra.Command{
+		Use:   "edit <asset_id>",
+		Short: "Edit asset metadata (name, description, tags)",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			creds := mustLoadCreds()
+			assetID := args[0]
+
+			body := make(map[string]interface{})
+			if name != "" {
+				body["name"] = name
+			}
+			if desc != "" {
+				body["description"] = desc
+			}
+			if tags != "" {
+				body["tags"] = strings.Split(tags, ",")
+			}
+
+			if len(body) == 0 {
+				exitErr("nothing to update, use --name, --description, or --tags")
+			}
+
+			resp, err := doJSON("PATCH", creds.BaseURL+"/api/v1/assets/"+assetID, creds.APIKey, body)
+			if err != nil {
+				exitErr(err.Error())
+			}
+			handleResp(resp)
+
+			// Warn that approved assets go back to pending
+			fmt.Fprintln(os.Stderr, "Note: editing an approved asset will revert it to pending status and require re-review.")
+		},
+	}
+	cmd.Flags().StringVar(&desc, "description", "", "New description")
+	cmd.Flags().StringVar(&name, "name", "", "New name")
+	cmd.Flags().StringVar(&tags, "tags", "", "New tags (comma-separated)")
+	return cmd
+}
+
+// --- Versions Command ---
+func newVersionsCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "versions <asset_id>",
+		Short: "List all versions of an asset",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			creds := mustLoadCreds()
+			assetID := args[0]
+
+			resp, err := doJSON("GET", creds.BaseURL+"/api/v1/assets/"+assetID+"/versions", creds.APIKey, nil)
+			if err != nil {
+				exitErr(err.Error())
+			}
+			handleResp(resp)
+		},
+	}
+	return cmd
+}
+
+// --- Whoami Command ---
+func newWhoamiCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "whoami",
+		Short: "Show current user info and permissions",
+		Run: func(cmd *cobra.Command, args []string) {
+			creds := mustLoadCreds()
+
+			resp, err := doJSON("GET", creds.BaseURL+"/api/v1/users/me", creds.APIKey, nil)
+			if err != nil {
+				exitErr(err.Error())
+			}
+			handleResp(resp)
+		},
+	}
+	return cmd
+}
+
 func newAdminCmd() *cobra.Command {
 	adminCmd := &cobra.Command{
 		Use:   "admin",
@@ -1923,6 +2005,9 @@ func main() {
 		newUninstallCmd(),
 		newMyAssetsCmd(),
 		newDeleteCmd(),
+		newEditCmd(),
+		newVersionsCmd(),
+		newWhoamiCmd(),
 		newAdminCmd(),
 	)
 

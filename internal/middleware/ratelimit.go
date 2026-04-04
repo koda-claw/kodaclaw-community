@@ -3,6 +3,7 @@ package middleware
 import (
 	"fmt"
 	"net/http"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -42,6 +43,8 @@ func (rl *slidingWindowLimiter) Allow(key string) (bool, int, time.Time) {
 
 	if !exists || now.Sub(w.startAt) >= rl.duration {
 		rl.windows[key] = &window{count: 1, startAt: now}
+		// Lazy cleanup: purge expired entries every ~100 requests
+		rl.lazyCleanup(now)
 		return true, rl.limit - 1, now.Add(rl.duration)
 	}
 
@@ -55,6 +58,19 @@ func (rl *slidingWindowLimiter) Allow(key string) (bool, int, time.Time) {
 	}
 
 	return true, remaining, resetAt
+}
+
+// lazyCleanup removes expired window entries to prevent unbounded memory growth.
+// Called probabilistically on new window creation (~1% chance per call).
+func (rl *slidingWindowLimiter) lazyCleanup(now time.Time) {
+	if len(rl.windows) < 100 || rand.Intn(100) != 0 {
+		return
+	}
+	for key, w := range rl.windows {
+		if now.Sub(w.startAt) >= rl.duration {
+			delete(rl.windows, key)
+		}
+	}
 }
 
 func RateLimitMiddleware(limiter RateLimiter, limit int) gin.HandlerFunc {
