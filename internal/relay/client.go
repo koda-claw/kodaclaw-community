@@ -37,6 +37,11 @@ func NewClient(hub *Hub, conn *websocket.Conn) *Client {
 	}
 }
 
+// Outbox exposes queued frames for tests and diagnostics.
+func (c *Client) Outbox() <-chan interface{} {
+	return c.outCh
+}
+
 // close signals the client to stop.
 func (c *Client) close() {
 	select {
@@ -47,11 +52,13 @@ func (c *Client) close() {
 }
 
 // send queues a frame for delivery to the client.
-func (c *Client) send(frame interface{}) {
+func (c *Client) send(frame interface{}) bool {
 	select {
 	case c.outCh <- frame:
+		return true
 	default:
 		// Drop frame if buffer is full; client is too slow.
+		return false
 	}
 }
 
@@ -92,6 +99,11 @@ func (c *Client) Run(ctx context.Context, relayRepo repository.RelayInstanceRepo
 		return
 	}
 	log.Printf("[RELAY-DEBUG] Found instance: id=%q account_id=%q", instance.ID, instance.AccountID)
+
+	if !instance.IsActive {
+		c.writeJSON(AuthFailedFrame{Type: FrameTypeAuthFailed, Code: "ACCOUNT_INACTIVE", Message: "account inactive"})
+		return
+	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(instance.SharedSecret), []byte(authFrame.SharedSecret)); err != nil {
 		c.writeJSON(AuthFailedFrame{Type: FrameTypeAuthFailed, Code: "INVALID_SECRET", Message: "invalid shared secret"})
@@ -134,7 +146,7 @@ func (c *Client) readPump() {
 		case FrameTypeAck:
 			// ACK received — nothing to do for now
 		case FrameTypePing:
-			c.send(PongFrame{Type: FrameTypePong})
+			_ = c.send(PongFrame{Type: FrameTypePong})
 		}
 	}
 }

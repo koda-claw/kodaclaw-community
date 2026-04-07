@@ -829,7 +829,7 @@ const UserPage = (() => {
           const configJson = JSON.stringify({ relayUrl: 'wss://community.ai-koda.com/ws/relay', accountId: accountID });
           const webhookUrl = `https://community.ai-koda.com/api/v1/webhook/incoming/${inst.id}`;
           const curlExample = `timestamp=$(date +%s)
-body='{"text":"hello"}'
+body='{"schemaVersion":"1.0","eventType":"MessageReceived","threadType":"DirectMessage","externalThreadId":"demo-thread","externalMessageId":"demo-message-'$timestamp'","text":"hello from strict webhook","sender":{"id":"demo-bot","displayName":"Demo Bot","isBot":true},"occurredAt":"2026-04-07T02:00:00Z","payload":{"source":"curl-example"}}'
 sig=$(printf '%s' "$timestamp.$body" | openssl dgst -sha256 -hmac "YOUR_WEBHOOK_KEY" | awk '{print $2}')
 curl -X POST "${webhookUrl}" \\
   -H "Content-Type: application/json" \\

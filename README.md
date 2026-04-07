@@ -122,6 +122,104 @@ my-skill/
 
 KodaClaw 实例首次使用时运行 `kc-community register <用户名> kodaclaw` 即可注册，Agent 会自动完成后续流程。
 
+## Relay Webhook 接入
+
+如果你要把外部系统的事件通过 Relay 转进 KodaClaw，请使用社区提供的严格 Webhook 契约。
+
+完整说明见 `/Users/vanzheng/projects/kodaclaw-community/docs/relay-webhook.md`。
+
+### 入口
+
+- URL: `/api/v1/webhook/incoming/:instanceId`
+- Method: `POST`
+- Content-Type: `application/json`
+
+### 请求头
+
+- `X-Relay-Timestamp`: Unix 秒级时间戳
+- `X-Relay-Signature`: `hex(HMAC_SHA256(secret, timestamp + "." + rawBody))`
+- `X-Relay-KeyId`: 可选；如果你使用多把 Webhook key，可以显式指定 key ID 或 key name
+
+### 严格请求体
+
+以下字段必须按名字、类型和语义原样提供；Community 不会做别名兼容、自动补字段或从 `payload` 猜字段：
+
+```json
+{
+  "schemaVersion": "1.0",
+  "eventType": "MessageReceived",
+  "threadType": "DirectMessage",
+  "externalThreadId": "crypto-monitor:BTC:4h",
+  "externalMessageId": "btc-4h-2026-04-07T02:00:00Z",
+  "text": "BTC 4h 下跌 1.5%，请分析是否需要动作。",
+  "sender": {
+    "id": "crypto-monitor",
+    "displayName": "Crypto Monitor",
+    "isBot": true
+  },
+  "occurredAt": "2026-04-07T02:00:00Z",
+  "correlationId": "monitor-run-123",
+  "payload": {
+    "symbol": "BTC",
+    "changePct": -1.5
+  }
+}
+```
+
+说明：
+
+- `schemaVersion` 目前只接受 `1.0`
+- `eventType` 只接受 `MessageReceived` 或 `NotificationReceived`
+- `threadType` 只接受 `DirectMessage` 或 `Group`
+- `externalThreadId` 必须是稳定线程 ID
+- `externalMessageId` 必须是业务消息幂等键
+- `MessageReceived` 必须提供非空 `text`
+- `sender` 必须包含 `id`、`displayName`、`isBot`
+- `payload` 可选，但如果提供，必须是 JSON object
+
+### curl 示例
+
+```bash
+timestamp=$(date +%s)
+body='{"schemaVersion":"1.0","eventType":"MessageReceived","threadType":"DirectMessage","externalThreadId":"demo-thread","externalMessageId":"demo-message-'$timestamp'","text":"hello from strict webhook","sender":{"id":"demo-bot","displayName":"Demo Bot","isBot":true},"occurredAt":"2026-04-07T02:00:00Z","payload":{"source":"curl-example"}}'
+sig=$(printf '%s' "$timestamp.$body" | openssl dgst -sha256 -hmac "YOUR_WEBHOOK_KEY" | awk '{print $2}')
+
+curl -X POST "https://community.ai-koda.com/api/v1/webhook/incoming/YOUR_INSTANCE_ID" \
+  -H "Content-Type: application/json" \
+  -H "X-Relay-Timestamp: $timestamp" \
+  -H "X-Relay-Signature: $sig" \
+  -d "$body"
+```
+
+### 响应语义
+
+成功时返回：
+
+```json
+{
+  "accepted": true,
+  "eventId": "relay_evt_xxx"
+}
+```
+
+失败时返回：
+
+```json
+{
+  "accepted": false,
+  "errorCode": "missing_required_field",
+  "message": "Missing required field: externalThreadId"
+}
+```
+
+常见失败原因：
+
+- 缺失签名头或签名不匹配
+- 时间戳超出允许窗口
+- Body 不是 JSON object
+- 使用了旧字段别名，如 `senderId` / `senderName`
+- 缺失 `externalThreadId`、`externalMessageId` 或消息类事件的 `text`
+
 ## 技术栈
 
 Go 1.25 + Gin + pgx + Redis · Docker Compose · GitHub Actions CI/CD · 纯 vanilla JS 前端

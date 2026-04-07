@@ -4,6 +4,14 @@ import (
 	"sync"
 )
 
+type DeliveryResult string
+
+const (
+	DeliveryQueued       DeliveryResult = "queued"
+	DeliveryNotConnected DeliveryResult = "not_connected"
+	DeliveryClientBusy   DeliveryResult = "client_busy"
+)
+
 // Hub manages all active relay WebSocket clients, keyed by accountID.
 type Hub struct {
 	mu      sync.RWMutex
@@ -56,14 +64,15 @@ func (h *Hub) Disconnect(accountID string) {
 }
 
 // OnEvent delivers an event payload to the connected client for accountID.
-// Returns false if the client is not connected.
-func (h *Hub) OnEvent(accountID string, frame EventFrame) bool {
+func (h *Hub) OnEvent(accountID string, frame EventFrame) DeliveryResult {
 	h.mu.RLock()
 	c, ok := h.clients[accountID]
 	h.mu.RUnlock()
 	if !ok {
-		return false
+		return DeliveryNotConnected
 	}
-	c.send(frame)
-	return true
+	if !c.send(frame) {
+		return DeliveryClientBusy
+	}
+	return DeliveryQueued
 }

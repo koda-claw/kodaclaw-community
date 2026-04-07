@@ -73,20 +73,26 @@ func (s *NotificationService) CreateAndNotify(ctx context.Context, notification 
 	}
 
 	frame := relay.EventFrame{
-		Type:         relay.FrameTypeEvent,
-		EventType:    "community_notification",
-		EventID:      notification.ID.String(),
-		Sender:       relay.EventSender{ID: "community", DisplayName: "KodaClaw 社区"},
-		Text:         notification.Title,
-		OccurredAt:   notification.CreatedAt,
-		MetadataJSON: string(metaBytes),
+		Type:              relay.FrameTypeEvent,
+		EventType:         "NotificationReceived",
+		ThreadType:        "DirectMessage",
+		EventID:           notification.ID.String(),
+		ExternalThreadID:  "community:notifications",
+		ExternalMessageID: "community-notification:" + notification.ID.String(),
+		Sender: relay.EventSender{
+			ID:          "community",
+			DisplayName: "KodaClaw 社区",
+			IsBot:       true,
+		},
+		Text:          notification.Title,
+		OccurredAt:    notification.CreatedAt,
+		CorrelationID: notification.ID.String(),
+		MetadataJSON:  string(metaBytes),
 	}
 
 	for _, instance := range instances {
-		if s.hub.IsOnline(instance.AccountID) {
-			if !s.hub.OnEvent(instance.AccountID, frame) {
-				log.Printf("[NotificationService] failed to push event to account %s", instance.AccountID)
-			}
+		if result := s.hub.OnEvent(instance.AccountID, frame); result != relay.DeliveryQueued {
+			log.Printf("[NotificationService] failed to push event to account %s: %s", instance.AccountID, result)
 		}
 	}
 

@@ -477,7 +477,9 @@ func (h *AssetHandler) Download(c *gin.Context) {
 
 	uid, err := uuid.Parse(userID)
 	if err == nil {
-		go h.assetRepo.IncrementDownloadCount(context.Background(), id, uid)
+		// Keep the counter update in-band so repeated downloads are reflected
+		// deterministically for API consumers and integration tests.
+		_ = h.assetRepo.IncrementDownloadCount(context.Background(), id, uid)
 		if h.activitySvc != nil {
 			h.activitySvc.Record(c.Request.Context(), uid, "download", &id)
 		}

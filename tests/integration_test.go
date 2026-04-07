@@ -7,14 +7,14 @@ import (
 	"fmt"
 	"mime/multipart"
 	"net/http/httptest"
-	"strings"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/vanzheng/kodaclaw-community/internal/handler"
 	"github.com/vanzheng/kodaclaw-community/internal/middleware"
 	"github.com/vanzheng/kodaclaw-community/internal/model"
@@ -173,6 +173,9 @@ func setupTestDB(t *testing.T) *pgxpool.Pool {
 			t.Fatalf("migration failed: %v", err)
 		}
 	}
+	if err := repository.RunRelayMigrations(ctx, pool); err != nil {
+		t.Fatalf("relay migration failed: %v", err)
+	}
 
 	// Clean up test data (order matters for FK)
 	pool.Exec(ctx, "DELETE FROM relay_webhook_keys")
@@ -202,6 +205,7 @@ func setupTestRouter(pool *pgxpool.Pool, storagePath string) *gin.Engine {
 	favoriteRepo := repository.NewFavoriteRepository(pool)
 	notificationRepo := repository.NewNotificationRepository(pool)
 	relayRepo := repository.NewRelayInstanceRepository(pool)
+	webhookKeyRepo := repository.NewWebhookKeyRepository(pool)
 	hub := relay.NewHub()
 	notificationSvc := service.NewNotificationService(notificationRepo, relayRepo, hub)
 	depRepo := repository.NewAssetDependencyRepository(pool)
@@ -217,14 +221,15 @@ func setupTestRouter(pool *pgxpool.Pool, storagePath string) *gin.Engine {
 	userH := handler.NewUserHandlerWithNotifications(userRepo, assetRepo, favoriteRepo, notificationRepo)
 	publicH := handler.NewPublicHandler(assetRepo, versionRepo, reviewRepo, userRepo, storagePath, activitySvc)
 
-
 	readLimiter := middleware.NewMemoryRateLimiter(1000, 60)
 	writeLimiter := middleware.NewMemoryRateLimiter(1000, 60)
 
 	engine := gin.New()
 	githubH := handler.NewGitHubHandler(userRepo)
 	bindH := handler.NewBindHandler(userRepo, relayRepo, hub)
-	router.Setup(engine, "test", authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, publicH, githubH, bindH, nil, nil)
+	relayH := handler.NewRelayHandler(relayRepo, webhookKeyRepo, hub)
+	webhookH := handler.NewWebhookHandler(relayRepo, webhookKeyRepo, hub, nil)
+	router.Setup(engine, "test", authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, publicH, githubH, bindH, relayH, webhookH)
 	return engine
 }
 
@@ -367,7 +372,9 @@ func TestIntegration_AssetCRUD(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	var list struct{ Total int `json:"total"` }
+	var list struct {
+		Total int `json:"total"`
+	}
 	json.Unmarshal(w.Body.Bytes(), &list)
 	if list.Total != 0 {
 		t.Errorf("public list should be empty, got %d", list.Total)
@@ -514,7 +521,9 @@ func TestIntegration_Reviews(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	var asset struct{ ID string `json:"id"` }
+	var asset struct {
+		ID string `json:"id"`
+	}
 	json.Unmarshal(w.Body.Bytes(), &asset)
 
 	req = httptest.NewRequest("POST", "/api/v1/admin/assets/"+asset.ID+"/approve", nil)
@@ -535,7 +544,9 @@ func TestIntegration_Reviews(t *testing.T) {
 		t.Fatalf("create review: expected 201, got %d, body: %s", w.Code, w.Body.String())
 	}
 
-	var review struct{ Content string `json:"content"` }
+	var review struct {
+		Content string `json:"content"`
+	}
 	json.Unmarshal(w.Body.Bytes(), &review)
 	if review.Content != "Great skill!" {
 		t.Errorf("review content mismatch")
@@ -546,7 +557,9 @@ func TestIntegration_Reviews(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	var reviewList struct{ Total int `json:"total"` }
+	var reviewList struct {
+		Total int `json:"total"`
+	}
 	json.Unmarshal(w.Body.Bytes(), &reviewList)
 	if reviewList.Total != 1 {
 		t.Errorf("expected 1 review, got %d", reviewList.Total)
@@ -593,7 +606,9 @@ func TestIntegration_AdminApproval(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	var asset struct{ ID string `json:"id"` }
+	var asset struct {
+		ID string `json:"id"`
+	}
 	json.Unmarshal(w.Body.Bytes(), &asset)
 
 	// Non-admin cannot access admin
@@ -613,7 +628,9 @@ func TestIntegration_AdminApproval(t *testing.T) {
 	if w.Code != 200 {
 		t.Fatalf("admin list: expected 200, got %d", w.Code)
 	}
-	var adminList struct{ Total int `json:"total"` }
+	var adminList struct {
+		Total int `json:"total"`
+	}
 	json.Unmarshal(w.Body.Bytes(), &adminList)
 	if adminList.Total != 1 {
 		t.Errorf("pending: expected 1, got %d", adminList.Total)
@@ -629,7 +646,9 @@ func TestIntegration_AdminApproval(t *testing.T) {
 	if w.Code != 200 {
 		t.Fatalf("reject: expected 200, got %d, body: %s", w.Code, w.Body.String())
 	}
-	var rejectResp struct{ Reason string `json:"reason"` }
+	var rejectResp struct {
+		Reason string `json:"reason"`
+	}
 	json.Unmarshal(w.Body.Bytes(), &rejectResp)
 	if rejectResp.Reason != "Security concern" {
 		t.Errorf("reason mismatch: %s", rejectResp.Reason)
@@ -659,7 +678,9 @@ func TestIntegration_AdminApproval(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	var publicList struct{ Total int `json:"total"` }
+	var publicList struct {
+		Total int `json:"total"`
+	}
 	json.Unmarshal(w.Body.Bytes(), &publicList)
 	if publicList.Total != 1 {
 		t.Errorf("public after approve: expected 1, got %d", publicList.Total)
@@ -684,7 +705,9 @@ func TestIntegration_UserProfile(t *testing.T) {
 	if w.Code != 200 {
 		t.Fatalf("get me: expected 200, got %d, body: %s", w.Code, w.Body.String())
 	}
-	var me struct{ ID string `json:"id"` }
+	var me struct {
+		ID string `json:"id"`
+	}
 	json.Unmarshal(w.Body.Bytes(), &me)
 	if me.ID != userID {
 		t.Errorf("id mismatch: expected %s, got %s", userID, me.ID)
@@ -722,7 +745,9 @@ func TestIntegration_HealthCheck(t *testing.T) {
 	if w.Code != 200 {
 		t.Fatalf("health: expected 200, got %d", w.Code)
 	}
-	var health struct{ Status string `json:"status"` }
+	var health struct {
+		Status string `json:"status"`
+	}
 	json.Unmarshal(w.Body.Bytes(), &health)
 	if health.Status != "ok" {
 		t.Errorf("status: expected ok, got %s", health.Status)
@@ -822,7 +847,9 @@ func TestIntegration_DownloadNonExistentVersion(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	var asset struct{ ID string `json:"id"` }
+	var asset struct {
+		ID string `json:"id"`
+	}
 	json.Unmarshal(w.Body.Bytes(), &asset)
 
 	req = httptest.NewRequest("POST", "/api/v1/admin/assets/"+asset.ID+"/approve", nil)
@@ -865,7 +892,9 @@ func TestIntegration_Pagination(t *testing.T) {
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
-		var asset struct{ ID string `json:"id"` }
+		var asset struct {
+			ID string `json:"id"`
+		}
 		json.Unmarshal(w.Body.Bytes(), &asset)
 
 		req = httptest.NewRequest("POST", "/api/v1/admin/assets/"+asset.ID+"/approve", nil)
@@ -937,7 +966,9 @@ func TestIntegration_FileStorage(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	var asset struct{ ID string `json:"id"` }
+	var asset struct {
+		ID string `json:"id"`
+	}
 	json.Unmarshal(w.Body.Bytes(), &asset)
 
 	expectedPath := filepath.Join(tmpDir, asset.ID, "1.0.0", "myskill.zip")
@@ -973,7 +1004,9 @@ func uploadTestAsset(t *testing.T, r *gin.Engine, apiKey, name, version string) 
 	if w.Code != 201 {
 		t.Fatalf("upload %s: expected 201, got %d body: %s", name, w.Code, w.Body.String())
 	}
-	var asset struct{ ID string `json:"id"` }
+	var asset struct {
+		ID string `json:"id"`
+	}
 	json.Unmarshal(w.Body.Bytes(), &asset)
 	return asset.ID
 }
@@ -1019,7 +1052,9 @@ func TestSecurity_PathTraversal(t *testing.T) {
 	}
 
 	// Verify the stored file is safe (filename was sanitized)
-	var asset struct{ ID string `json:"id"` }
+	var asset struct {
+		ID string `json:"id"`
+	}
 	json.Unmarshal(w.Body.Bytes(), &asset)
 
 	// The file should be stored as "passwd.zip" not "../../etc/passwd.zip"

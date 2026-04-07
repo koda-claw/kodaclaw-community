@@ -29,6 +29,10 @@ tags:
     description: 管理员操作
   - name: Notifications
     description: 通知系统
+  - name: Relay
+    description: Relay 与 Webhook 接入
+  - name: System
+    description: 系统接口
 
 paths:
   /health:
@@ -39,6 +43,102 @@ paths:
       responses:
         '200':
           description: OK
+
+  /webhook/incoming/{instanceId}:
+    post:
+      tags: [Relay]
+      security: []
+      summary: 接收 Relay 严格契约 Webhook
+      description: |
+        该入口只接受严格格式的 Relay Webhook 请求。
+        不兼容旧字段别名，不自动补默认值，也不会从 payload 猜测协议字段。
+      parameters:
+        - name: instanceId
+          in: path
+          required: true
+          description: Relay 实例 ID
+          schema:
+            type: string
+        - name: X-Relay-Timestamp
+          in: header
+          required: true
+          description: Unix 秒级时间戳
+          schema:
+            type: string
+        - name: X-Relay-Signature
+          in: header
+          required: true
+          description: 十六进制 HMAC-SHA256 签名，签名串为 timestamp + "." + rawBody
+          schema:
+            type: string
+        - name: X-Relay-KeyId
+          in: header
+          required: false
+          description: 可选；多密钥模式下可传 key ID 或 key name
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RelayWebhookRequest'
+            examples:
+              messageReceived:
+                summary: 消息事件
+                value:
+                  schemaVersion: "1.0"
+                  eventType: MessageReceived
+                  threadType: DirectMessage
+                  externalThreadId: crypto-monitor:BTC:4h
+                  externalMessageId: btc-4h-2026-04-07T02:00:00Z
+                  text: BTC 4h 下跌 1.5%，请分析是否需要动作。
+                  sender:
+                    id: crypto-monitor
+                    displayName: Crypto Monitor
+                    isBot: true
+                  occurredAt: "2026-04-07T02:00:00Z"
+                  correlationId: monitor-run-123
+                  payload:
+                    symbol: BTC
+                    changePct: -1.5
+      responses:
+        '200':
+          description: Webhook 已通过校验并进入待投递流程
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelayWebhookAcceptedResponse'
+        '400':
+          description: 请求格式不符合严格契约
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelayWebhookErrorResponse'
+        '401':
+          description: 签名或时间戳校验失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelayWebhookErrorResponse'
+        '404':
+          description: Relay 实例不存在或不可用
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelayWebhookErrorResponse'
+        '413':
+          description: 请求体超过大小限制
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelayWebhookErrorResponse'
+        '503':
+          description: Relay 通道不可用
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelayWebhookErrorResponse'
 
   /auth/register:
     post:
@@ -640,6 +740,98 @@ components:
         format: uuid
 
   schemas:
+    RelayWebhookRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - eventType
+        - threadType
+        - externalThreadId
+        - externalMessageId
+        - sender
+        - occurredAt
+      properties:
+        schemaVersion:
+          type: string
+          enum: ["1.0"]
+        eventType:
+          type: string
+          enum: [MessageReceived, NotificationReceived]
+        threadType:
+          type: string
+          enum: [DirectMessage, Group]
+        externalThreadId:
+          type: string
+          minLength: 1
+        externalMessageId:
+          type: string
+          minLength: 1
+        text:
+          type: string
+          description: MessageReceived 必填；NotificationReceived 推荐提供摘要
+        sender:
+          $ref: '#/components/schemas/RelayWebhookSender'
+        occurredAt:
+          type: string
+          format: date-time
+        correlationId:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+
+    RelayWebhookSender:
+      type: object
+      additionalProperties: false
+      required: [id, displayName, isBot]
+      properties:
+        id:
+          type: string
+          minLength: 1
+        displayName:
+          type: string
+          minLength: 1
+        isBot:
+          type: boolean
+
+    RelayWebhookAcceptedResponse:
+      type: object
+      required: [accepted, eventId]
+      properties:
+        accepted:
+          type: boolean
+          enum: [true]
+        eventId:
+          type: string
+
+    RelayWebhookErrorResponse:
+      type: object
+      required: [accepted, errorCode, message]
+      properties:
+        accepted:
+          type: boolean
+          enum: [false]
+        errorCode:
+          type: string
+          enum:
+            - invalid_instance
+            - signature_invalid
+            - timestamp_expired
+            - payload_required
+            - payload_not_json
+            - payload_not_object
+            - unsupported_schema_version
+            - unsupported_event_type
+            - unsupported_thread_type
+            - missing_required_field
+            - invalid_field_type
+            - invalid_timestamp
+            - payload_too_large
+            - relay_unavailable
+        message:
+          type: string
+
     RegisterRequest:
       type: object
       required: [username, password, user_type]

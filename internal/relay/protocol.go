@@ -36,20 +36,22 @@ type AuthFailedFrame struct {
 type EventSender struct {
 	ID          string `json:"id"`
 	DisplayName string `json:"displayName"`
+	IsBot       bool   `json:"isBot"`
 }
 
 // EventFrame is pushed by the server to deliver an event.
 type EventFrame struct {
-	Type             string      `json:"type"`
-	EventID          string      `json:"eventId"`
-	EventType        string      `json:"eventType"`
-	ThreadType       string      `json:"threadType"`
-	ExternalThreadID string      `json:"externalThreadId"`
-	Text             string      `json:"text"`
-	Sender           EventSender `json:"sender"`
-	OccurredAt       time.Time   `json:"occurredAt"`
-	CorrelationID    string      `json:"correlationId"`
-	MetadataJSON     string      `json:"metadataJson"`
+	Type              string      `json:"type"`
+	EventID           string      `json:"eventId"`
+	EventType         string      `json:"eventType"`
+	ThreadType        string      `json:"threadType"`
+	ExternalThreadID  string      `json:"externalThreadId"`
+	ExternalMessageID string      `json:"externalMessageId"`
+	Text              string      `json:"text"`
+	Sender            EventSender `json:"sender"`
+	OccurredAt        time.Time   `json:"occurredAt"`
+	CorrelationID     string      `json:"correlationId"`
+	MetadataJSON      string      `json:"metadataJson"`
 }
 
 // AckFrame is sent by the client to acknowledge an event.
