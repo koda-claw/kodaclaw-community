@@ -26,6 +26,7 @@ type GitHubHandler struct {
 	clientID     string
 	clientSecret string
 	redirectURL  string
+	resetKeyH    *ResetKeyHandler
 }
 
 func NewGitHubHandler(userRepo repository.UserRepository) *GitHubHandler {
@@ -35,6 +36,12 @@ func NewGitHubHandler(userRepo repository.UserRepository) *GitHubHandler {
 		clientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
 		redirectURL:  os.Getenv("GITHUB_REDIRECT_URL"),
 	}
+}
+
+// SetResetKeyHandler allows injecting the ResetKeyHandler after construction
+// to avoid circular dependency.
+func (h *GitHubHandler) SetResetKeyHandler(rkh *ResetKeyHandler) {
+	h.resetKeyH = rkh
 }
 
 // GetAuthURL returns the GitHub OAuth authorization URL.
@@ -84,9 +91,47 @@ func (h *GitHubHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	// Determine if this is a bind flow (state contains /bind)
+	// Parse state to determine flow
 	state := c.Query("state")
 	isBindFlow := strings.Contains(state, "/bind")
+	isResetKeyFlow := strings.HasPrefix(state, "/reset-key/")
+
+	if isResetKeyFlow {
+		// Reset-key flow: extract username from state
+		username := strings.TrimPrefix(state, "/reset-key/")
+		if username == "" {
+			c.Redirect(http.StatusFound, "/?github_error=invalid_state")
+			return
+		}
+
+		// Look up user by GitHub ID
+		user, err := h.findUser(c.Request.Context(), ghUser)
+		if err != nil {
+			c.Redirect(http.StatusFound, "/?github_error=user_not_found")
+			return
+		}
+
+		// Verify username matches
+		if user.Username != username {
+			c.Redirect(http.StatusFound, "/?github_error=username_mismatch")
+			return
+		}
+
+		// Generate reset token
+		if h.resetKeyH == nil {
+			c.Redirect(http.StatusFound, "/?github_error=internal_error")
+			return
+		}
+		resetToken, err := h.resetKeyH.HandleResetKeyCallback(c.Request.Context(), user)
+		if err != nil {
+			c.Redirect(http.StatusFound, "/?github_error=reset_token_failed")
+			return
+		}
+
+		// Redirect to frontend with reset_token
+		c.Redirect(http.StatusFound, "/?reset_token="+url.QueryEscape(resetToken))
+		return
+	}
 
 	var apiKey string
 	if isBindFlow {

@@ -84,6 +84,13 @@ func handleResp(resp *http.Response) {
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		exitErr(fmt.Sprintf("failed to decode response: %v", err))
 	}
+	if resp.StatusCode == 401 {
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, "API Key 已失效，请访问社区网站个人中心重置:")
+		fmt.Fprintf(os.Stderr, "  %s/#/me\n", getBaseURL())
+		fmt.Fprintln(os.Stderr, "")
+		os.Exit(1)
+	}
 	if resp.StatusCode >= 400 {
 		enc := json.NewEncoder(os.Stderr)
 		enc.SetIndent("", "  ")

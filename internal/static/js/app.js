@@ -1,4 +1,3 @@
-
 // Initialize Lucide icons after DOM updates
 function refreshIcons() {
   if (typeof lucide !== 'undefined') {
@@ -60,7 +59,7 @@ window.addEventListener('hashchange', () => { setTimeout(refreshIcons, 100); });
 
   async function renderLanding(container) {
     container.innerHTML = `
-      <!-- ── Hero ── -->
+      <!-- ─── Hero ─── -->
       <div class="lp-hero">
         <div class="lp-bg-grid"></div>
         <div class="lp-bg-scanlines"></div>
@@ -91,7 +90,7 @@ window.addEventListener('hashchange', () => { setTimeout(refreshIcons, 100); });
         </div>
       </div>
 
-      <!-- ── How it works ── -->
+      <!-- ─── How it works ─── -->
       <section class="lp-section">
         <div class="lp-section-hd">
           <div class="lp-kicker">HOW&nbsp;IT&nbsp;WORKS</div>
@@ -126,7 +125,7 @@ window.addEventListener('hashchange', () => { setTimeout(refreshIcons, 100); });
         </div>
       </section>
 
-      <!-- ── Featured assets ── -->
+      <!-- ─── Featured assets ─── -->
       <section class="lp-section">
         <div class="lp-assets-grid">
           <div>
@@ -319,6 +318,16 @@ function renderUploadForm(container) {
           msg.textContent = '上传成功！资产已提交审核。';
           msg.className = 'msg success';
           setTimeout(() => { window.location.hash = '#/me'; }, 1500);
+        } else if (data.error === 'GITHUB_REQUIRED') {
+          container.querySelector('.upload-page').innerHTML = `
+            <div class="upload-page" style="text-align:center;padding:60px 20px;">
+              <h1 class="page-title" style="margin-bottom:16px;">需要绑定 GitHub</h1>
+              <p style="color:var(--text-secondary);margin-bottom:24px;">上传资产前需要先绑定 GitHub 账号，用于身份验证和账号安全。</p>
+              <a href="/api/v1/auth/github?state=/bind" class="btn btn-primary" style="display:inline-flex;align-items:center;gap:8px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                绑定 GitHub 账号
+              </a>
+            </div>`;
         } else {
           msg.textContent = data.message || data.error || '上传失败';
           msg.className = 'msg error';
@@ -390,6 +399,8 @@ function requireAuth() {
     const params = new URLSearchParams(window.location.search);
     const githubToken = params.get('github_token');
     const githubError = params.get('github_error');
+    const resetToken = params.get('reset_token');
+
     if (githubToken) {
       localStorage.setItem('api_key', githubToken);
       window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
@@ -407,6 +418,73 @@ function requireAuth() {
       });
       return;
     }
+
+    if (resetToken) {
+      // Show reset key confirmation page
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+      document.getElementById('app').innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:center;min-height:80vh;padding:20px;">
+          <div style="background:#12121a;border:1px solid #2a2a3a;border-radius:16px;padding:40px;max-width:480px;width:100%;text-align:center;">
+            <div style="font-size:2.5rem;margin-bottom:16px;">🔑</div>
+            <h1 style="font-size:1.4rem;color:#e2e2f0;margin-bottom:8px;">重置 API Key</h1>
+            <p style="color:#888899;margin-bottom:24px;line-height:1.6;font-size:0.9rem;">
+              GitHub 身份验证成功。点击下方按钮确认重置你的 API Key。<br>
+              <strong style="color:#e2e2f0;">注意：重置后旧 API Key 将立即失效。</strong>
+            </p>
+            <div id="reset-result" style="display:none;margin-bottom:20px;padding:16px;background:#1a1a26;border:1px solid #2a2a3a;border-radius:8px;text-align:left;">
+              <p style="color:#888899;font-size:0.85rem;margin-bottom:8px;">新的 API Key（请立即保存）：</p>
+              <code id="new-api-key" style="font-family:monospace;font-size:0.9rem;color:#a5b4fc;word-break:break-all;display:block;padding:8px;background:#0a0a0f;border-radius:4px;"></code>
+              <button id="copy-key-btn" style="margin-top:8px;padding:6px 16px;background:#6366f1;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;">复制 Key</button>
+            </div>
+            <div id="reset-error" style="display:none;margin-bottom:20px;padding:12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;font-size:0.9rem;"></div>
+            <button id="btn-confirm-reset" style="padding:12px 32px;background:#6366f1;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:1rem;font-weight:600;">
+              确认重置
+            </button>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('btn-confirm-reset').addEventListener('click', async () => {
+        const btn = document.getElementById('btn-confirm-reset');
+        const result = document.getElementById('reset-result');
+        const error = document.getElementById('reset-error');
+        btn.disabled = true;
+        btn.textContent = '处理中…';
+        error.style.display = 'none';
+
+        try {
+          const res = await fetch('/api/v1/auth/reset-key/confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reset_token: resetToken }),
+          });
+          const data = await res.json();
+          if (res.ok && data.api_key) {
+            localStorage.setItem('api_key', data.api_key);
+            result.style.display = 'block';
+            document.getElementById('new-api-key').textContent = data.api_key;
+            btn.style.display = 'none';
+            document.getElementById('copy-key-btn').addEventListener('click', () => {
+              navigator.clipboard.writeText(data.api_key).then(() => {
+                document.getElementById('copy-key-btn').textContent = '已复制 ✓';
+              });
+            });
+          } else {
+            error.textContent = data.message || data.error || '重置失败';
+            error.style.display = 'block';
+            btn.disabled = false;
+            btn.textContent = '确认重置';
+          }
+        } catch (err) {
+          error.textContent = '网络错误，请重试';
+          error.style.display = 'block';
+          btn.disabled = false;
+          btn.textContent = '确认重置';
+        }
+      });
+      return;
+    }
+
     if (githubError) {
       window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
     }

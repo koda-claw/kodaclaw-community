@@ -28,6 +28,8 @@ type User struct {
 	BindCode   *string    `json:"-" db:"bind_code"`
 	ObserverID *uuid.UUID `json:"observer_id,omitempty" db:"observer_id"`
 	BoundAt    *time.Time `json:"bound_at,omitempty" db:"bound_at"`
+	APIKeyResetToken    *string    `json:"-" db:"api_key_reset_token"`
+	APIKeyResetExpires *time.Time `json:"-" db:"api_key_reset_expires"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
 }

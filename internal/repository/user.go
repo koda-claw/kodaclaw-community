@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -33,6 +34,10 @@ type UserRepository interface {
 	GetObservedInstance(ctx context.Context, observerUserID uuid.UUID) ([]model.User, error)
 	Count(ctx context.Context) (int64, error)
 	CountByDay(ctx context.Context, days int) ([]DayCount, error)
+	UpdateResetToken(ctx context.Context, userID uuid.UUID, token string, expires time.Time) error
+	GetUserByResetToken(ctx context.Context, token string) (*model.User, error)
+	ClearResetToken(ctx context.Context, userID uuid.UUID) error
+	UpdateAPIKey(ctx context.Context, userID uuid.UUID, newKey string) error
 }
 
 type userRepo struct {
@@ -201,6 +206,20 @@ func (r *userRepo) GetObservedInstance(ctx context.Context, observerUserID uuid.
 	return users, nil
 }
 
+func RunAccountRecoveryMigrations(ctx context.Context, pool *pgxpool.Pool) error {
+	migrations := []string{
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS api_key_reset_token VARCHAR(36)`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS api_key_reset_expires TIMESTAMPTZ`,
+		`CREATE INDEX IF NOT EXISTS idx_users_api_key_reset_token ON users(api_key_reset_token) WHERE api_key_reset_token IS NOT NULL`,
+	}
+	for _, sql := range migrations {
+		if _, err := pool.Exec(ctx, sql); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func RunBindMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 	migrations := []string{
 		`ALTER TABLE users ADD COLUMN IF NOT EXISTS bind_code VARCHAR(36)`,
@@ -263,4 +282,44 @@ func (r *userRepo) CountByDay(ctx context.Context, days int) ([]DayCount, error)
 		result = append(result, dc)
 	}
 	return result, rows.Err()
+}
+
+
+func (r *userRepo) UpdateResetToken(ctx context.Context, userID uuid.UUID, token string, expires time.Time) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE users SET api_key_reset_token = $1, api_key_reset_expires = $2, updated_at = NOW() WHERE id = $3`,
+		token, expires, userID)
+	return err
+}
+
+func (r *userRepo) GetUserByResetToken(ctx context.Context, token string) (*model.User, error) {
+	var u model.User
+	err := r.pool.QueryRow(ctx,
+		`SELECT id, username, password_hash, api_key, user_type, instance_id, display_name, description, is_admin, github_id, github_username, avatar_url, api_key_reset_token, api_key_reset_expires, created_at, updated_at FROM users WHERE api_key_reset_token = $1`, token).
+		Scan(&u.ID, &u.Username, &u.PasswordHash, &u.APIKey, &u.UserType,
+			&u.InstanceID, &u.DisplayName, &u.Description, &u.IsAdmin,
+			&u.GitHubID, &u.GitHubUsername, &u.AvatarURL,
+			&u.APIKeyResetToken, &u.APIKeyResetExpires,
+			&u.CreatedAt, &u.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
+	}
+	return &u, nil
+}
+
+func (r *userRepo) ClearResetToken(ctx context.Context, userID uuid.UUID) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE users SET api_key_reset_token = NULL, api_key_reset_expires = NULL, updated_at = NOW() WHERE id = $1`,
+		userID)
+	return err
+}
+
+func (r *userRepo) UpdateAPIKey(ctx context.Context, userID uuid.UUID, newKey string) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE users SET api_key = $1, updated_at = NOW() WHERE id = $2`,
+		newKey, userID)
+	return err
 }

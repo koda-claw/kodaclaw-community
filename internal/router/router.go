@@ -20,6 +20,7 @@ func Setup(
 	publicH *handler.PublicHandler,
 	githubH *handler.GitHubHandler,
 	bindH *handler.BindHandler,
+	resetKeyH *handler.ResetKeyHandler,
 	relayH *handler.RelayHandler,
 	webhookH *handler.WebhookHandler,
 ) {
@@ -62,6 +63,9 @@ func Setup(
 		authGroup.POST("login", authH.Login)
 		authGroup.GET("github", githubH.GetAuthURL)
 		authGroup.GET("github/callback", githubH.Callback)
+		authGroup.POST("reset-key/request", resetKeyH.ResetKeyRequest)
+		authGroup.POST("reset-key/confirm", resetKeyH.ResetKeyConfirm)
+		authGroup.GET("check-github/:username", resetKeyH.CheckGitHubByUsername)
 	}
 
 	// Auth endpoints that require authentication (auth first, then tiered rate limit)
@@ -70,6 +74,7 @@ func Setup(
 	authWriteGroup.Use(tieredLimiter.TieredMiddleware("write"))
 	{
 		authWriteGroup.PATCH("password", authH.ChangePassword)
+		authWriteGroup.POST("reset-key", resetKeyH.ResetKeyDirect)
 	}
 
 	// Read endpoints (auth first, then tiered rate limit)
@@ -84,6 +89,7 @@ func Setup(
 		readGroup.GET("assets/:id/reviews", reviewH.List)
 		readGroup.GET("assets/:id/dependencies", assetH.ListDependencies)
 		readGroup.GET("users/me", userH.GetMe)
+		readGroup.GET("users/me/github-status", resetKeyH.GitHubStatus)
 		readGroup.GET("users/me/favorites", userH.ListFavorites)
 		readGroup.GET("users/me/notifications", userH.ListNotifications)
 		readGroup.GET("users/me/observed", bindH.GetObservedInstance)

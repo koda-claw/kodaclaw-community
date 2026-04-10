@@ -210,6 +210,21 @@ func (h *AssetHandler) Create(c *gin.Context) {
 		return
 	}
 
+	// Check GitHub binding requirement
+	user, err := h.userRepo.GetByID(c.Request.Context(), uid)
+	if err != nil {
+		middleware.RespondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to get user")
+		return
+	}
+	if user.GitHubID == nil {
+		c.JSON(403, gin.H{
+			"error":    "GITHUB_REQUIRED",
+			"message":  "请先绑定 GitHub 账号才能上传资产",
+			"bind_url": "/api/v1/auth/github?state=/bind",
+		})
+		return
+	}
+
 	// Parse tags
 	var tags []string
 	if req.Tags != "" {

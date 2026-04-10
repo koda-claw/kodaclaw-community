@@ -44,6 +44,25 @@ const UserPage = (() => {
             <h2 class="sidebar-username">${Components.escHtml(sidebarUser.username || '')}</h2>
             <span class="badge ${typeCls} sidebar-type-badge">${typeLabel}</span>
             ${bioHtml}
+            ${!githubUsername ? `
+            <div class="github-bind-card" style="margin-top:12px;padding:12px;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.3);border-radius:8px;">
+              <p style="margin:0 0 8px;font-size:13px;color:var(--text-secondary);">绑定 GitHub 以启用资产上传和账号安全</p>
+              <a href="/api/v1/auth/github?state=/bind" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#a78bfa;text-decoration:none;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                绑定 GitHub
+              </a>
+            </div>` : `
+            <div style="margin-top:12px;padding:8px 12px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);border-radius:8px;display:flex;align-items:center;gap:8px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              <span style="font-size:13px;color:#10b981;">GitHub 已绑定: ${Components.escHtml(githubUsername)}</span>
+            </div>`}
+            <div style="margin-top:16px;">
+              <button id="btn-reset-key" style="width:100%;padding:8px 12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                重置 API Key
+              </button>
+              <div id="reset-key-result" style="margin-top:8px;"></div>
+            </div>
             <div id="sidebar-instance-status"></div>
           </div>
           <nav class="user-sidebar-nav">
@@ -76,6 +95,57 @@ const UserPage = (() => {
       Auth.logout();
       window.location.hash = '#/login';
     });
+
+    // Reset API Key
+    const resetBtn = document.getElementById('btn-reset-key');
+    const resetResult = document.getElementById('reset-key-result');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        if (resetResult.querySelector('.reset-confirm')) return; // already showing
+        resetResult.innerHTML = `
+          <div class="reset-confirm" style="padding:12px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;">
+            <p style="margin:0 0 4px;font-size:14px;font-weight:600;color:#f87171;">重置 API Key</p>
+            <p style="margin:0 0 12px;font-size:12px;color:var(--text-secondary);">旧 API Key 将立即失效，所有使用旧 key 的设备需要更新。</p>
+            <div style="display:flex;gap:8px;">
+              <button id="reset-cancel" style="flex:1;padding:6px;background:transparent;border:1px solid rgba(255,255,255,0.2);border-radius:6px;color:var(--text-secondary);font-size:13px;cursor:pointer;">取消</button>
+              <button id="reset-confirm-btn" style="flex:1;padding:6px;background:rgba(239,68,68,0.2);border:1px solid rgba(239,68,68,0.4);border-radius:6px;color:#f87171;font-size:13px;cursor:pointer;">确认重置</button>
+            </div>
+          </div>`;
+        document.getElementById('reset-cancel').addEventListener('click', () => { resetResult.innerHTML = ''; });
+        document.getElementById('reset-confirm-btn').addEventListener('click', async () => {
+          const btn = document.getElementById('reset-confirm-btn');
+          btn.disabled = true;
+          btn.textContent = '重置中...';
+          try {
+            const key = localStorage.getItem('api_key');
+            const res = await fetch('/api/v1/auth/reset-key', {
+              method: 'POST',
+              headers: { 'Authorization': 'Bearer ' + key }
+            });
+            const data = await res.json();
+            if (res.ok) {
+              localStorage.setItem('api_key', data.api_key);
+              resetResult.innerHTML = `
+                <div style="padding:12px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);border-radius:8px;">
+                  <p style="margin:0 0 8px;font-size:14px;font-weight:600;color:#10b981;">新的 API Key 已生成</p>
+                  <code id="new-api-key" style="display:block;padding:8px;background:rgba(0,0,0,0.3);border-radius:6px;font-size:12px;color:#e2e8f0;word-break:break-all;user-select:all;">\${data.api_key}</code>
+                  <button id="copy-key-btn" style="margin-top:8px;width:100%;padding:6px;background:rgba(16,185,129,0.2);border:1px solid rgba(16,185,129,0.4);border-radius:6px;color:#10b981;font-size:13px;cursor:pointer;">复制 Key</button>
+                  <p style="margin:8px 0 0;font-size:11px;color:var(--text-secondary);">请将新 key 更新到你的 KodaClaw 配置文件中</p>
+                </div>`;
+              document.getElementById('copy-key-btn').addEventListener('click', () => {
+                navigator.clipboard.writeText(data.api_key).then(() => {
+                  document.getElementById('copy-key-btn').textContent = '已复制';
+                });
+              });
+            } else {
+              resetResult.innerHTML = `<p style="color:#f87171;font-size:13px;">\${data.message || '重置失败'}</p>`;
+            }
+          } catch (e) {
+            resetResult.innerHTML = `<p style="color:#f87171;font-size:13px;">网络错误</p>`;
+          }
+        });
+      });
+    }
 
     loadTab('my-assets');
   }

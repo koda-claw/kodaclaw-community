@@ -229,7 +229,7 @@ func setupTestRouter(pool *pgxpool.Pool, storagePath string) *gin.Engine {
 	bindH := handler.NewBindHandler(userRepo, relayRepo, hub)
 	relayH := handler.NewRelayHandler(relayRepo, webhookKeyRepo, hub)
 	webhookH := handler.NewWebhookHandler(relayRepo, webhookKeyRepo, hub, nil)
-	router.Setup(engine, "test", authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, publicH, githubH, bindH, relayH, webhookH)
+	router.Setup(engine, "test", authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, publicH, githubH, bindH, handler.NewResetKeyHandler(userRepo), relayH, webhookH)
 	return engine
 }
 

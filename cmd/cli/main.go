@@ -49,6 +49,7 @@ func main() {
 		newVersionsCmd(),
 		newWhoamiCmd(),
 		newAdminCmd(),
+		newBindGitHubCmd(),
 	)
 
 	if err := root.Execute(); err != nil {

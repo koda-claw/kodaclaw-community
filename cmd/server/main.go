@@ -70,6 +70,9 @@ func main() {
 	if err := repository.RunBindMigrations(ctx, pool); err != nil {
 		log.Fatalf("Failed to run bind migrations: %v", err)
 	}
+	if err := repository.RunAccountRecoveryMigrations(ctx, pool); err != nil {
+		log.Fatalf("Failed to run account recovery migrations: %v", err)
+	}
 	if cfg.RelayEnabled {
 		if err := repository.RunRelayMigrations(ctx, pool); err != nil {
 			log.Fatalf("Failed to run relay migrations: %v", err)
@@ -127,6 +130,8 @@ func main() {
 	publicH := handler.NewPublicHandler(assetRepo, versionRepo, reviewRepo, userRepo, cfg.AssetStoragePath, activitySvc)
 	githubH := handler.NewGitHubHandler(userRepo)
 	bindH := handler.NewBindHandler(userRepo, relayRepo, hub)
+	resetKeyH := handler.NewResetKeyHandler(userRepo)
+	githubH.SetResetKeyHandler(resetKeyH)
 
 	taskCtx, taskCancel := context.WithCancel(context.Background())
 	defer taskCancel()
@@ -146,7 +151,7 @@ func main() {
 	}
 
 	engine := gin.Default()
-	router.Setup(engine, Version, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, publicH, githubH, bindH, relayH, webhookH)
+	router.Setup(engine, Version, authH, assetH, reviewH, adminH, userH, userRepo, readLimiter, writeLimiter, publicH, githubH, bindH, resetKeyH, relayH, webhookH)
 
 	srv := &http.Server{
 		Addr:    cfg.Port,
