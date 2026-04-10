@@ -367,15 +367,14 @@ func (h *AdminHandler) ApproveVersion(c *gin.Context) {
 		return
 	}
 
-	// If this is the current version, sync content to assets table
-	asset, err := h.assetRepo.GetByID(c.Request.Context(), ver.AssetID)
-	if err == nil && asset.CurrentVersion != nil && *asset.CurrentVersion == ver.Version {
-		if ver.SkillContent != nil || ver.Readme != nil {
-			_ = h.assetRepo.UpdateReadme(c.Request.Context(), ver.AssetID, ver.Readme, ver.SkillContent)
-		}
+	// Update current_version to this version and sync content to assets table
+	_ = h.assetRepo.UpdateCurrentVersion(c.Request.Context(), ver.AssetID, ver.Version)
+	if ver.SkillContent != nil || ver.Readme != nil {
+		_ = h.assetRepo.UpdateReadme(c.Request.Context(), ver.AssetID, ver.Readme, ver.SkillContent)
 	}
 
 	// Notify author
+	asset, _ := h.assetRepo.GetByID(c.Request.Context(), ver.AssetID)
 	assetName := "unknown"
 	if asset != nil {
 		assetName = asset.Name
