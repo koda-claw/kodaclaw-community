@@ -85,10 +85,10 @@ func (r *userRepo) Create(ctx context.Context, user *model.User) error {
 func (r *userRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.User, error) {
 	var u model.User
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, username, password_hash, api_key, user_type, instance_id, display_name, description, is_admin, created_at, updated_at
+		`SELECT id, username, password_hash, api_key, user_type, instance_id, display_name, description, is_admin, github_id, github_username, created_at, updated_at
 		 FROM users WHERE id = $1`, id).
 		Scan(&u.ID, &u.Username, &u.PasswordHash, &u.APIKey, &u.UserType,
-			&u.InstanceID, &u.DisplayName, &u.Description, &u.IsAdmin, &u.CreatedAt, &u.UpdatedAt)
+			&u.InstanceID, &u.DisplayName, &u.Description, &u.IsAdmin, &u.GitHubID, &u.GitHubUsername, &u.CreatedAt, &u.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrUserNotFound
 	}
@@ -98,10 +98,10 @@ func (r *userRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.User, erro
 func (r *userRepo) GetByUsername(ctx context.Context, username string) (*model.User, error) {
 	var u model.User
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, username, password_hash, api_key, user_type, instance_id, display_name, description, is_admin, created_at, updated_at
+		`SELECT id, username, password_hash, api_key, user_type, instance_id, display_name, description, is_admin, github_id, github_username, created_at, updated_at
 		 FROM users WHERE username = $1`, username).
 		Scan(&u.ID, &u.Username, &u.PasswordHash, &u.APIKey, &u.UserType,
-			&u.InstanceID, &u.DisplayName, &u.Description, &u.IsAdmin, &u.CreatedAt, &u.UpdatedAt)
+			&u.InstanceID, &u.DisplayName, &u.Description, &u.IsAdmin, &u.GitHubID, &u.GitHubUsername, &u.CreatedAt, &u.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrUserNotFound
 	}
@@ -125,10 +125,10 @@ func (r *userRepo) UpdatePassword(ctx context.Context, id uuid.UUID, passwordHas
 func (r *userRepo) GetByAPIKey(ctx context.Context, apiKey string) (*model.User, error) {
 	var u model.User
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, username, password_hash, api_key, user_type, instance_id, display_name, description, is_admin, created_at, updated_at
+		`SELECT id, username, password_hash, api_key, user_type, instance_id, display_name, description, is_admin, github_id, github_username, created_at, updated_at
 		 FROM users WHERE api_key = $1`, apiKey).
 		Scan(&u.ID, &u.Username, &u.PasswordHash, &u.APIKey, &u.UserType,
-			&u.InstanceID, &u.DisplayName, &u.Description, &u.IsAdmin, &u.CreatedAt, &u.UpdatedAt)
+			&u.InstanceID, &u.DisplayName, &u.Description, &u.IsAdmin, &u.GitHubID, &u.GitHubUsername, &u.CreatedAt, &u.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrUserNotFound
 	}
@@ -138,10 +138,10 @@ func (r *userRepo) GetByAPIKey(ctx context.Context, apiKey string) (*model.User,
 func (r *userRepo) GetByGitHubID(ctx context.Context, githubID int64) (*model.User, error) {
 	var u model.User
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, username, password_hash, api_key, user_type, instance_id, display_name, description, is_admin, created_at, updated_at
+		`SELECT id, username, password_hash, api_key, user_type, instance_id, display_name, description, is_admin, github_id, github_username, created_at, updated_at
 		 FROM users WHERE github_id = $1`, githubID).
 		Scan(&u.ID, &u.Username, &u.PasswordHash, &u.APIKey, &u.UserType,
-			&u.InstanceID, &u.DisplayName, &u.Description, &u.IsAdmin, &u.CreatedAt, &u.UpdatedAt)
+			&u.InstanceID, &u.DisplayName, &u.Description, &u.IsAdmin, &u.GitHubID, &u.GitHubUsername, &u.CreatedAt, &u.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrUserNotFound
 	}
