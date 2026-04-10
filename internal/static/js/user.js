@@ -128,7 +128,7 @@ const UserPage = (() => {
               resetResult.innerHTML = `
                 <div style="padding:12px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);border-radius:8px;">
                   <p style="margin:0 0 8px;font-size:14px;font-weight:600;color:#10b981;">新的 API Key 已生成</p>
-                  <code id="new-api-key" style="display:block;padding:8px;background:rgba(0,0,0,0.3);border-radius:6px;font-size:12px;color:#e2e8f0;word-break:break-all;user-select:all;">\${data.api_key}</code>
+                  <code id="new-api-key" style="display:block;padding:8px;background:rgba(0,0,0,0.3);border-radius:6px;font-size:12px;color:#e2e8f0;word-break:break-all;user-select:all;">${data.api_key}</code>
                   <button id="copy-key-btn" style="margin-top:8px;width:100%;padding:6px;background:rgba(16,185,129,0.2);border:1px solid rgba(16,185,129,0.4);border-radius:6px;color:#10b981;font-size:13px;cursor:pointer;">复制 Key</button>
                   <p style="margin:8px 0 0;font-size:11px;color:var(--text-secondary);">请将新 key 更新到你的 KodaClaw 配置文件中</p>
                 </div>`;
