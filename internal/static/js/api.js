@@ -3,7 +3,7 @@ const API = (() => {
   const BASE = '/api/v1';
 
   function getKey() {
-    return localStorage.getItem('api_key') || '';
+    return localStorage.getItem('jwt_token') || '';
   }
 
   async function request(method, path, body, options = {}) {
@@ -17,7 +17,7 @@ const API = (() => {
     const res = await fetch(BASE + path, opts);
 
     if (res.status === 401) {
-      localStorage.removeItem('api_key');
+      localStorage.removeItem('jwt_token');
       localStorage.removeItem('user');
       // Only redirect to login if this was an authenticated request
       if (!options.public) {

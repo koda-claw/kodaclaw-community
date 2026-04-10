@@ -15,6 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/vanzheng/kodaclaw-community/internal/auth"
 	"github.com/vanzheng/kodaclaw-community/internal/middleware"
 	"github.com/vanzheng/kodaclaw-community/internal/model"
 	"github.com/vanzheng/kodaclaw-community/internal/repository"
@@ -133,36 +134,79 @@ func (h *GitHubHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	var apiKey string
 	if isBindFlow {
-		// Bind flow: allow creating new user
-		var err error
-		apiKey, err = h.findOrCreateUser(c.Request.Context(), ghUser)
+		// Bind flow: allow creating new user, redirect with api_key as before
+		apiKey, err := h.findOrCreateUser(c.Request.Context(), ghUser)
 		if err != nil {
 			c.Redirect(http.StatusFound, "/?github_error=user_create_failed")
 			return
 		}
-	} else {
-		// Direct login: only find, don't create
-		user, err := h.findUser(c.Request.Context(), ghUser)
-		if err != nil {
-			c.Redirect(http.StatusFound, "/bind-error")
-			return
+		// Respect state parameter for OAuth redirect back
+		if state != "" {
+			sep := "?"
+			if strings.Contains(state, "?") {
+				sep = "&"
+			}
+			c.Redirect(http.StatusFound, state+sep+"github_token="+url.QueryEscape(apiKey))
+		} else {
+			c.Redirect(http.StatusFound, "/?github_token="+url.QueryEscape(apiKey))
 		}
-		apiKey = user.APIKey
+		return
 	}
 
-	// Respect state parameter for OAuth redirect back
+	// Direct login: find all instances bound to this GitHub account
+	users, err := h.userRepo.GetByGitHubIDs(c.Request.Context(), ghUser.ID)
+	if err != nil || len(users) == 0 {
+		c.Redirect(http.StatusFound, "/bind-error")
+		return
+	}
+
+	// Decode state for potential redirect
+	var redirectURL string
 	if state != "" {
-		// Redirect back to the original page (e.g. /bind?token=xxx) with the API key
+		if decoded, err := base64.URLEncoding.DecodeString(state); err == nil {
+			redirectURL, _ = url.QueryUnescape(string(decoded))
+		} else {
+			redirectURL = state
+		}
+	}
+
+	if len(users) == 1 {
+		// Single instance: issue JWT directly
+		u := users[0]
+		jwtToken, err := auth.GenerateToken(u.ID.String(), u.Username, u.IsAdmin)
+		if err != nil {
+			c.Redirect(http.StatusFound, "/?github_error=token_generation_failed")
+			return
+		}
+		if redirectURL != "" {
+			sep := "?"
+			if strings.Contains(redirectURL, "?") {
+				sep = "&"
+			}
+			c.Redirect(http.StatusFound, redirectURL+sep+"jwt="+url.QueryEscape(jwtToken))
+		} else {
+			c.Redirect(http.StatusFound, "/?jwt="+url.QueryEscape(jwtToken))
+		}
+		return
+	}
+
+	// Multiple instances: generate select_token for user to choose
+	selectToken, err := auth.CreateSelectToken(c.Request.Context(), ghUser.ID)
+	if err != nil {
+		c.Redirect(http.StatusFound, "/?github_error=select_token_failed")
+		return
+	}
+	if redirectURL != "" {
 		sep := "?"
-		if strings.Contains(state, "?") {
+		if strings.Contains(redirectURL, "?") {
 			sep = "&"
 		}
-		c.Redirect(http.StatusFound, state+sep+"github_token="+url.QueryEscape(apiKey))
+		c.Redirect(http.StatusFound, redirectURL+sep+"instance_select="+url.QueryEscape(selectToken))
 	} else {
-		c.Redirect(http.StatusFound, "/?github_token="+url.QueryEscape(apiKey))
+		c.Redirect(http.StatusFound, "/?instance_select="+url.QueryEscape(selectToken))
 	}
+	return
 }
 
 type githubTokenResponse struct {

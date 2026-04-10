@@ -66,6 +66,9 @@ func Setup(
 		authGroup.POST("reset-key/request", resetKeyH.ResetKeyRequest)
 		authGroup.POST("reset-key/confirm", resetKeyH.ResetKeyConfirm)
 		authGroup.GET("check-github/:username", resetKeyH.CheckGitHubByUsername)
+		instanceSelectH := handler.NewInstanceSelectHandler(userRepo)
+		authGroup.GET("instances", instanceSelectH.ListInstances)
+		authGroup.POST("instance/select", instanceSelectH.SelectInstance)
 	}
 
 	// Auth endpoints that require authentication (auth first, then tiered rate limit)

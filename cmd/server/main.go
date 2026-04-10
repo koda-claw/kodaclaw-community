@@ -22,6 +22,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
+	"github.com/vanzheng/kodaclaw-community/internal/auth"
 	"github.com/vanzheng/kodaclaw-community/internal/config"
 	"github.com/vanzheng/kodaclaw-community/internal/handler"
 	"github.com/vanzheng/kodaclaw-community/internal/logger"
@@ -91,6 +92,12 @@ func main() {
 	if err := rdb.Ping(ctx).Err(); err != nil {
 		log.Printf("WARNING: Redis not available, falling back to memory rate limiter: %v", err)
 	}
+
+	// JWT init
+	auth.Init()
+
+	// Redis init for auth (select_token)
+	auth.InitRedis(rdb)
 
 	if err := os.MkdirAll(cfg.AssetStoragePath, 0755); err != nil {
 		log.Fatalf("Failed to create storage directory: %v", err)

@@ -1,7 +1,7 @@
 // 登录/注册/认证逻辑
 const Auth = (() => {
   function isLoggedIn() {
-    return !!localStorage.getItem('api_key');
+    return !!localStorage.getItem('jwt_token');
   }
 
   function getUser() {
@@ -10,7 +10,7 @@ const Auth = (() => {
   }
 
   function logout() {
-    localStorage.removeItem('api_key');
+    localStorage.removeItem('jwt_token');
     localStorage.removeItem('user');
     window.location.hash = '#/login';
   }

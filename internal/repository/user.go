@@ -26,6 +26,7 @@ type UserRepository interface {
 	GetByUsername(ctx context.Context, username string) (*model.User, error)
 	GetByAPIKey(ctx context.Context, apiKey string) (*model.User, error)
 	GetByGitHubID(ctx context.Context, githubID int64) (*model.User, error)
+GetByGitHubIDs(ctx context.Context, githubID int64) ([]model.User, error)
 	UpdateProfile(ctx context.Context, id uuid.UUID, displayName, description *string) error
 	UpdatePassword(ctx context.Context, id uuid.UUID, passwordHash string) error
 	UpdateAvatarURL(ctx context.Context, id uuid.UUID, avatarURL string) error
@@ -322,4 +323,26 @@ func (r *userRepo) UpdateAPIKey(ctx context.Context, userID uuid.UUID, newKey st
 		`UPDATE users SET api_key = $1, updated_at = NOW() WHERE id = $2`,
 		newKey, userID)
 	return err
+}
+
+func (r *userRepo) GetByGitHubIDs(ctx context.Context, githubID int64) ([]model.User, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT id, username, password_hash, api_key, user_type, instance_id, display_name, description, is_admin, github_id, github_username, avatar_url, created_at, updated_at
+		 FROM users WHERE github_id = $1`, githubID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []model.User
+	for rows.Next() {
+		var u model.User
+		err := rows.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.APIKey, &u.UserType,
+			&u.InstanceID, &u.DisplayName, &u.Description, &u.IsAdmin, &u.GitHubID, &u.GitHubUsername, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
 }

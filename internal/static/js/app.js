@@ -307,7 +307,7 @@ function renderUploadForm(container) {
       msg.textContent = '';
       try {
         const fd = new FormData(e.target);
-        const key = localStorage.getItem('api_key');
+        const key = localStorage.getItem('jwt_token');
         const res = await fetch('/api/v1/assets', {
           method: 'POST',
           headers: { 'Authorization': 'Bearer ' + key },
@@ -394,15 +394,140 @@ function requireAuth() {
     renderFooter();
   }
 
+
+  // Instance selection page for multi-instance OAuth flow
+  async function showInstanceSelectPage(selectToken) {
+    const app = document.getElementById('app');
+    app.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:center;min-height:80vh;padding:20px;">
+        <div style="max-width:720px;width:100%;text-align:center;">
+          <h1 style="font-size:1.5rem;color:#e2e2f0;margin-bottom:8px;">选择要登录的实例</h1>
+          <p style="color:#888899;margin-bottom:24px;font-size:0.9rem;">你的 GitHub 账号关联了多个 KodaClaw 实例，请选择一个继续</p>
+          <div id="instance-select-list" style="text-align:left;">${Components.spinner()}</div>
+        </div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/v1/auth/instances?select_token=' + encodeURIComponent(selectToken));
+      if (!res.ok) throw new Error('获取实例列表失败');
+      const data = await res.json();
+      const instances = data.instances || data.data || data || [];
+
+      if (!instances.length) {
+        document.getElementById('instance-select-list').innerHTML = Components.errorBox('没有可用的实例');
+        return;
+      }
+
+      const listHtml = '<div class="asset-grid">' + instances.map(inst => {
+        const username = Components.escHtml(inst.username || '');
+        const displayName = inst.display_name ? Components.escHtml(inst.display_name) : '';
+        const githubUsername = inst.github_username ? Components.escHtml(inst.github_username) : '';
+        const avatarUrl = inst.avatar_url || (githubUsername ? 'https://github.com/' + githubUsername + '.png' : '');
+        const createdAt = inst.created_at ? new Date(inst.created_at).toLocaleDateString('zh-CN') : '';
+        const instId = Components.escHtml(inst.id || '');
+        const avatarHtml = avatarUrl
+          ? `<img src="${Components.escHtml(avatarUrl)}" class="avatar-img" style="width:48px;height:48px;border-radius:50%;object-fit:cover;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="avatar-circle" style="display:none;width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-size:1.2rem;font-weight:600;">${username[0]?.toUpperCase() || '?'}</div>`
+          : `<div class="avatar-circle" style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-size:1.2rem;font-weight:600;">${username[0]?.toUpperCase() || '?'}</div>`;
+
+        return `
+          <div class="instance-card" style="background:#12121a;border:1px solid #2a2a3a;border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:12px;cursor:default;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              ${avatarHtml}
+              <div style="flex:1;min-width:0;">
+                <h3 style="margin:0;font-size:1rem;color:#e2e2f0;">@${username}</h3>
+                ${displayName ? `<p style="margin:2px 0 0;font-size:0.85rem;color:#a5b4fc;">${displayName}</p>` : ''}
+                ${githubUsername ? `<p style="margin:2px 0 0;font-size:0.8rem;color:#888899;">GitHub: ${githubUsername}</p>` : ''}
+              </div>
+            </div>
+            ${createdAt ? `<p style="margin:0;font-size:0.75rem;color:#6b7280;">创建于 ${createdAt}</p>` : ''}
+            <button class="btn btn-primary btn-instance-select" data-instance-id="${instId}" style="margin-top:4px;">选择此实例</button>
+          </div>
+        `;
+      }).join('') + '</div>';
+
+      document.getElementById('instance-select-list').innerHTML = listHtml;
+
+      document.querySelectorAll('.btn-instance-select').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          btn.textContent = '正在登录...';
+          try {
+            const selectRes = await fetch('/api/v1/auth/instance/select', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ select_token: selectToken, instance_id: btn.dataset.instanceId })
+            });
+            if (!selectRes.ok) {
+              const errData = await selectRes.json();
+              throw new Error(errData.error || errData.message || '选择实例失败');
+            }
+            const selectData = await selectRes.json();
+            const jwt = selectData.jwt;
+            if (!jwt) throw new Error('未收到 JWT');
+
+            localStorage.setItem('jwt_token', jwt);
+            // Clean URL
+            window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+            // Fetch user info
+            const meRes = await fetch('/api/v1/users/me', {
+              headers: { 'Authorization': 'Bearer ' + jwt }
+            });
+            const meData = await meRes.json();
+            const user = meData.data || meData;
+            if (user) {
+              localStorage.setItem('user', JSON.stringify(user));
+            }
+            // Initialize app
+            route();
+          } catch (err) {
+            btn.disabled = false;
+            btn.textContent = '选择此实例';
+            btn.insertAdjacentHTML('afterend', `<p style="color:#f87171;font-size:0.85rem;margin-top:4px;">${Components.escHtml(err.message)}</p>`);
+          }
+        });
+      });
+    } catch (err) {
+      document.getElementById('instance-select-list').innerHTML = Components.errorBox(err.message);
+    }
+  }
+
   window.addEventListener('hashchange', route);
   window.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams(window.location.search);
+    const jwt = params.get('jwt');
+    const instanceSelect = params.get('instance_select');
     const githubToken = params.get('github_token');
     const githubError = params.get('github_error');
     const resetToken = params.get('reset_token');
 
+    // JWT single-instance direct login
+    if (jwt) {
+      localStorage.setItem('jwt_token', jwt);
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+      // Fetch user info from /users/me
+      fetch('/api/v1/users/me', {
+        headers: { 'Authorization': 'Bearer ' + jwt }
+      }).then(r => r.json()).then(data => {
+        const user = data.data || data;
+        if (user) {
+          localStorage.setItem('user', JSON.stringify(user));
+        }
+        route();
+      }).catch(() => {
+        route();
+      });
+      return;
+    }
+
+    // Multi-instance selection
+    if (instanceSelect) {
+      showInstanceSelectPage(instanceSelect);
+      return;
+    }
+
     if (githubToken) {
-      localStorage.setItem('api_key', githubToken);
+      localStorage.setItem('jwt_token', githubToken);
       window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
       // Fetch user info (including is_admin) from /users/me
       fetch('/api/v1/users/me', {
@@ -460,7 +585,7 @@ function requireAuth() {
           });
           const data = await res.json();
           if (res.ok && data.api_key) {
-            localStorage.setItem('api_key', data.api_key);
+            localStorage.setItem('jwt_token', data.api_key);
             result.style.display = 'block';
             document.getElementById('new-api-key').textContent = data.api_key;
             btn.style.display = 'none';

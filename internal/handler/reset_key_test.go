@@ -56,6 +56,9 @@ func (m *mockUserRepoForReset) GetByAPIKey(ctx context.Context, apiKey string) (
 func (m *mockUserRepoForReset) GetByGitHubID(ctx context.Context, githubID int64) (*model.User, error) {
 	return nil, repository.ErrUserNotFound
 }
+func (m *mockUserRepoForReset) GetByGitHubIDs(ctx context.Context, githubID int64) ([]model.User, error) {
+	return nil, nil
+}
 func (m *mockUserRepoForReset) UpdateProfile(ctx context.Context, id uuid.UUID, displayName, description *string) error {
 	return nil
 }

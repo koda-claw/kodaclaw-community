@@ -271,7 +271,7 @@ const AssetsPage = (() => {
       document.getElementById('btn-download').addEventListener('click', (e) => {
         e.preventDefault();
         const downloadUrl = '/api/v1/public/skills/download/' + (asset.id || identifier);
-        const key = localStorage.getItem('api_key');
+        const key = localStorage.getItem('jwt_token');
         const headers = {};
         if (key) headers['Authorization'] = 'Bearer ' + key;
 

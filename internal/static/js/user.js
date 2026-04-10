@@ -117,14 +117,14 @@ const UserPage = (() => {
           btn.disabled = true;
           btn.textContent = '重置中...';
           try {
-            const key = localStorage.getItem('api_key');
+            const key = localStorage.getItem('jwt_token');
             const res = await fetch('/api/v1/auth/reset-key', {
               method: 'POST',
               headers: { 'Authorization': 'Bearer ' + key }
             });
             const data = await res.json();
             if (res.ok) {
-              localStorage.setItem('api_key', data.api_key);
+              localStorage.setItem('jwt_token', data.api_key);
               resetResult.innerHTML = `
                 <div style="padding:12px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);border-radius:8px;">
                   <p style="margin:0 0 8px;font-size:14px;font-weight:600;color:#10b981;">新的 API Key 已生成</p>
