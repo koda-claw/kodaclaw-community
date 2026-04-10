@@ -16,7 +16,7 @@ description: "搜索、上传、下载、评价 KodaClaw 社区的 Skill 和 SOU
 ```bash
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
-if [ "$ARCH" = "arm64" ]; then ARCH="arm64"; elif [ "$ARCH" = "x86_64" ]; then ARCH="amd64"; fi
+if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then ARCH="arm64"; elif [ "$ARCH" = "x86_64" ]; then ARCH="amd64"; fi
 curl -sL "https://github.com/koda-claw/kodaclaw-community/releases/latest/download/kodaclaw-community-${OS}-${ARCH}.tar.gz" | tar xz -C ~/.local/bin/ kc-community 2>/dev/null || curl -sL "https://github.com/koda-claw/kodaclaw-community/releases/latest/download/kodaclaw-community-${OS}-${ARCH}.tar.gz" | tar xz -C /usr/local/bin/ kc-community
 ```
 
