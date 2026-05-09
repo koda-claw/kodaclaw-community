@@ -40,10 +40,6 @@ Remove-Item $tmpDir -Recurse -Force
 
 > 若你在 Windows ARM64，当前 Release 仅提供 amd64，需先确认系统是否支持 x64 兼容层；若不支持请联系仓库维护者补充 arm64 产物。
 
-> 如需部署服务端（`kc-server`），请改用 `kodaclaw-server-<os>-<arch>` 对应包：
-> - 仅 Linux/macOS: `kodaclaw-server-<os>-<arch>.tar.gz`
-> - Windows 下不提供服务端安装，CLI 使用场景可直接使用 `kc-community`。
-
 ### 2. 检查是否已注册
 ```bash
 kc-community status
