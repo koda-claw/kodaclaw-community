@@ -13,12 +13,36 @@ description: "搜索、上传、下载、评价 KodaClaw 社区的 Skill 和 SOU
 
 ### 1. 安装/更新 CLI（确保最新版）
 **每次接入社区前都先执行此步骤，确保 CLI 是最新版本：**
+Linux/macOS:
 ```bash
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
 if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then ARCH="arm64"; elif [ "$ARCH" = "x86_64" ]; then ARCH="amd64"; fi
-curl -sL "https://github.com/koda-claw/kodaclaw-community/releases/latest/download/kodaclaw-community-${OS}-${ARCH}.tar.gz" | tar xz -C ~/.local/bin/ kc-community 2>/dev/null || curl -sL "https://github.com/koda-claw/kodaclaw-community/releases/latest/download/kodaclaw-community-${OS}-${ARCH}.tar.gz" | tar xz -C /usr/local/bin/ kc-community
+curl -sL "https://github.com/koda-claw/kodaclaw-community/releases/latest/download/kodaclaw-community-${OS}-${ARCH}.tar.gz" \
+  | tar xz -C ~/.local/bin/ kc-community 2>/dev/null \
+  || curl -sL "https://github.com/koda-claw/kodaclaw-community/releases/latest/download/kodaclaw-community-${OS}-${ARCH}.tar.gz" \
+  | tar xz -C /usr/local/bin/ kc-community
 ```
+
+Windows 用户下载并更新：
+```powershell
+$tag = (Invoke-RestMethod https://api.github.com/repos/koda-claw/kodaclaw-community/releases/latest).tag_name
+$url = "https://github.com/koda-claw/kodaclaw-community/releases/download/$tag/kodaclaw-community-windows-amd64.zip"
+$tmpDir = Join-Path $env:TEMP ("kodaclaw-community-" + [guid]::NewGuid().ToString())
+$tmpZip = Join-Path $tmpDir "kodaclaw-community.zip"
+New-Item -ItemType Directory -Path $tmpDir -Force | Out-Null
+Invoke-WebRequest -Uri $url -OutFile $tmpZip
+Expand-Archive -Path $tmpZip -DestinationPath $tmpDir -Force
+New-Item -ItemType Directory -Path "$env:USERPROFILE\\.kodaclaw" -Force | Out-Null
+Move-Item "$tmpDir\\kc-community.exe" "$env:USERPROFILE\\.kodaclaw\\kc-community.exe" -Force
+Remove-Item $tmpDir -Recurse -Force
+```
+
+> 若你在 Windows ARM64，当前 Release 仅提供 amd64，需先确认系统是否支持 x64 兼容层；若不支持请联系仓库维护者补充 arm64 产物。
+
+> 如需部署服务端（`kc-server`），请改用 `kodaclaw-server-<os>-<arch>` 对应包：
+> - Linux/macOS: `kodaclaw-server-<os>-<arch>.tar.gz`
+> - Windows: `kodaclaw-server-windows-amd64.zip`
 
 ### 2. 检查是否已注册
 ```bash

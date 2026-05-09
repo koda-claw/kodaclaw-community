@@ -76,16 +76,24 @@ jobs:
         if: matrix.goos != 'windows'
         run: |
           chmod +x kc-community kc-server
-          tar czf kodaclaw-community-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz kc-community kc-server
+          tar czf kodaclaw-community-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz kc-community
+          tar czf kodaclaw-server-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz kc-server
+          echo "RELEASE_ASSETS<<EOF" >> "$GITHUB_ENV"
+          echo "kodaclaw-community-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" >> "$GITHUB_ENV"
+          echo "kodaclaw-server-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" >> "$GITHUB_ENV"
+          echo "EOF" >> "$GITHUB_ENV"
 
       - name: Package (Windows)
         if: matrix.goos == 'windows'
         run: |
-          7z a kodaclaw-community-${{ matrix.goos }}-${{ matrix.goarch }}.zip kc-community.exe kc-server.exe
+          zip -q kodaclaw-community-${{ matrix.goos }}-${{ matrix.goarch }}.zip kc-community.exe
+          zip -q kodaclaw-server-${{ matrix.goos }}-${{ matrix.goarch }}.zip kc-server.exe
+          echo "RELEASE_ASSETS<<EOF" >> "$GITHUB_ENV"
+          echo "kodaclaw-community-${{ matrix.goos }}-${{ matrix.goarch }}.zip" >> "$GITHUB_ENV"
+          echo "kodaclaw-server-${{ matrix.goos }}-${{ matrix.goarch }}.zip" >> "$GITHUB_ENV"
+          echo "EOF" >> "$GITHUB_ENV"
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            kodaclaw-community-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz
-            kodaclaw-community-${{ matrix.goos }}-${{ matrix.goarch }}.zip
+          files: ${{ env.RELEASE_ASSETS }}
